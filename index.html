@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-<script>window.addEventListener("error",function(e){alert("JS ERROR: "+e.message+" | file: "+e.filename+" | line: "+e.lineno);});window.addEventListener("unhandledrejection",function(e){alert("PROMISE ERROR: "+(e.reason&&e.reason.message?e.reason.message:JSON.stringify(e.reason)));});</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0b1420">
@@ -285,17 +284,7 @@ input,textarea,select{font-family:inherit}
 .chat-wrap{--wa-bg:#0b141a;--wa-panel:#111b21;--wa-header:#202c33;--wa-bubble-in:#202c33;--wa-bubble-out:#005c4b;--wa-accent:#00a884;--wa-text:#e9edef;--wa-text-dim:#8696a0;--wa-divider:#222d34;
   display:grid;grid-template-columns:280px minmax(0,1fr);height:calc(100vh - 150px);min-height:460px;border:1px solid var(--wa-divider);border-radius:var(--radius);overflow:hidden;background:var(--wa-bg);}
 @media(max-width:760px){.chat-wrap{grid-template-columns:1fr;height:calc(100vh - 130px);}
-  .chat-list.hide-mobile{display:none;} .chat-pane.hide-mobile{display:none;}
-  body.chat-fullscreen .topbar,
-  body.chat-fullscreen .mobilenav,
-  body.chat-fullscreen .appfooter{ display:none !important; }
-  body.chat-fullscreen #panel-chat{ padding:0; margin:0; }
-  body.chat-fullscreen .chat-wrap{
-    position:fixed; inset:0; z-index:60;
-    height:100vh; height:100dvh; min-height:0;
-    border:none; border-radius:0; margin:0;
-  }
-}
+  .chat-list.hide-mobile{display:none;} .chat-pane.hide-mobile{display:none;}}
 .chat-list{border-right:1px solid var(--wa-divider);overflow-y:auto;background:var(--wa-panel);}
 .chat-list-head{padding:14px 16px;border-bottom:1px solid var(--wa-divider);font-weight:700;font-size:16px;color:var(--wa-text);background:var(--wa-header);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
 .chat-list-head .wa-import-btn{background:var(--wa-accent);color:#06231d;border:none;border-radius:20px;padding:6px 10px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;white-space:nowrap;}
@@ -316,7 +305,7 @@ input,textarea,select{font-family:inherit}
 .msg-row.mine .msg-bubble{background:var(--wa-bubble-out);color:var(--wa-text);}
 .msg-time{font-size:10.5px;color:var(--wa-text-dim);margin-top:2px;text-align:right;}
 .msg-row.mine .msg-time{text-align:right;}
-.chat-input-row{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--wa-divider);background:var(--wa-header);align-items:center;}
+.chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--wa-divider);background:var(--wa-header);align-items:center;}
 .chat-input-row input{flex:1;background:var(--wa-panel);border:1px solid var(--wa-divider);border-radius:22px;padding:11px 16px;color:var(--wa-text);font-size:14px;}
 .chat-input-row input:focus{outline:none;border-color:var(--wa-accent);}
 .chat-input-row #btnSendMsg{background:var(--wa-accent);color:#06231d;border:none;border-radius:50%;width:40px;height:40px;font-size:16px;flex:none;}
@@ -420,22 +409,22 @@ input,textarea,select{font-family:inherit}
 /* footer / connect with us */
 .appfooter{max-width:1180px;margin:8px auto 90px;padding:0 20px;}
 @media(max-width:900px){.appfooter{margin-bottom:100px;}}
-.footer-card{padding:14px;text-align:center;}
-.footer-card h4{margin:0 0 3px;font-family:var(--font-display);font-size:13px;font-weight:600;}
-.footer-card .sub{font-size:10.5px;color:var(--text-dim);margin-bottom:10px;}
-.social-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.footer-card{padding:20px;text-align:center;}
+.footer-card h4{margin:0 0 4px;font-family:var(--font-display);font-size:15px;font-weight:600;}
+.footer-card .sub{font-size:12px;color:var(--text-dim);margin-bottom:14px;}
+.social-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
 .social-btn{
-  display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:18px;
-  border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-weight:600;
+  display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:22px;
+  border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;
   transition:.15s;
 }
 .social-btn:hover{border-color:var(--copper-dark);transform:translateY(-1px);}
-.social-btn .ico{width:14px;height:14px;flex:none;}
+.social-btn .ico{width:18px;height:18px;flex:none;}
 .social-btn.fb:hover{color:#1877F2;border-color:#1877F2;}
 .social-btn.yt:hover{color:#FF0000;border-color:#FF0000;}
 .social-btn.ig:hover{color:#E1306C;border-color:#E1306C;}
 .social-btn.mail:hover{color:var(--copper-bright);border-color:var(--copper-dark);}
-.footer-copy{font-size:10px;color:var(--text-faint);font-family:var(--font-mono);}
+.footer-copy{font-size:11px;color:var(--text-faint);font-family:var(--font-mono);}
 
 /* badges */
 .badge-dot{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);}
@@ -1173,7 +1162,7 @@ const firebaseConfig = {
   appId: "1:221084904588:web:f1c47a722b2a7c98509fa9",
   measurementId: "G-66L58LCCVY"
 };
-const CLOUDINARY_CLOUD_NAME = 'y8iguofl';
+const CLOUDINARY_CLOUD_NAME = "y8iguof1";
 const CLOUDINARY_UPLOAD_PRESET = "tdm_upload";
 
 // Generate this in Firebase Console → Project Settings → Cloud Messaging →
@@ -1660,7 +1649,8 @@ onAuthStateChanged(auth, async (user)=>{
     startIncomingCallListener();
     loadSavedItems();
     registerPushNotifications();
-    switchTab('feed');
+    history.replaceState({tab:'feed'}, '', location.pathname + location.search);
+    switchTab('feed', true);
     handleDeepLink();
   } else {
     stopPresenceHeartbeat();
@@ -1718,9 +1708,8 @@ function renderSidebar(){
 }
 
 /* ---------------- Tabs ---------------- */
-function switchTab(tab){
+function switchTab(tab, fromPopstate){
   activeTab = tab;
-  if(tab!=='chat') document.body.classList.remove('chat-fullscreen');
   document.querySelectorAll('.tabpanel').forEach(p=>p.classList.add('hidden'));
   document.getElementById('panel-'+tab).classList.remove('hidden');
   document.querySelectorAll('.navtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
@@ -1733,12 +1722,34 @@ function switchTab(tab){
   if(tab==='market') startMarket();
   if(tab==='videos') startVideos();
   if(tab==='files') startFiles();
+  if(!fromPopstate){
+    history.pushState({tab}, '', location.pathname + location.search);
+  }
 }
 document.querySelectorAll('[data-tab]').forEach(el=>{
   el.addEventListener('click', ()=> switchTab(el.dataset.tab));
 });
 document.getElementById('btnGoChat').addEventListener('click', ()=> switchTab('chat'));
 document.getElementById('btnNotifBell').addEventListener('click', ()=> openNotifPanel());
+
+/* ================= BACK BUTTON / HISTORY ================= */
+// Without this, Android's back button (and the browser's own back) has no
+// app-internal state to go to and exits straight out of the PWA. This wires
+// tab switches and opening a chat into the browser history stack so back
+// closes an open chat -> returns to the chat list -> returns to whatever
+// tab you were last on, only exiting once there's nothing left to unwind.
+window.addEventListener('popstate', (e)=>{
+  const state = e.state || { tab: 'feed' };
+  if(state.tab === 'chat' && state.convoId){
+    switchTab('chat', true);
+    openConvo(state.convoId, true);
+  } else if(state.tab === 'chat'){
+    switchTab('chat', true);
+    showConvoList();
+  } else {
+    switchTab(state.tab || 'feed', true);
+  }
+});
 
 /* ================= THEME ================= */
 function applyTheme(theme){
@@ -3529,12 +3540,14 @@ window.startChat = async function(otherUid){
   }
 }
 
-window.openConvo = async function(convoId){
+window.openConvo = async function(convoId, fromPopstate){
   activeConvoId = convoId;
   document.querySelectorAll('.convo-item').forEach(el=>el.classList.remove('active'));
   document.getElementById('chatListPane').classList.add('hide-mobile');
-  document.body.classList.add('chat-fullscreen');
   await renderChatPane(convoId);
+  if(!fromPopstate){
+    history.pushState({tab:'chat', convoId}, '', location.pathname + location.search);
+  }
   if(unsubMessages) unsubMessages();
   const q = query(collection(db,'conversations',convoId,'messages'), orderBy('createdAt','asc'), limit(200));
   unsubMessages = onSnapshot(q, (snap)=>{
@@ -3687,9 +3700,15 @@ function notifyTyping(convoId){
   clearTimeout(typingTimeout);
   updateDoc(doc(db,'conversations',convoId), { [`typing.${currentUser.uid}`]: serverTimestamp() }).catch(()=>{});
 }
-window.backToConvoList = function(){
+function showConvoList(){
   document.getElementById('chatListPane').classList.remove('hide-mobile');
-  document.body.classList.remove('chat-fullscreen');
+}
+window.backToConvoList = function(){
+  // Let the back button's own history entry (pushed when this conversation
+  // was opened) pop naturally — the popstate listener below then calls
+  // showConvoList(). This keeps Android's back button and this on-screen
+  // arrow behaving the same way instead of fighting each other.
+  history.back();
 }
 let msgCache = {}; // messageId -> {text, senderName} — used by the message action menu so we don't embed raw text in onclick attrs
 function renderReactionsHtml(reactions){
@@ -4476,156 +4495,3 @@ window.openArticleDetail = async function(id){
 </script>
 </body>
 </html>
-<style>
-.appfooter{max-width:100%;margin:0;padding:6px 12px}
-.footer-card{padding:6px 10px !important;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
-.footer-card h4,.footer-card .sub,.social-row{display:none !important}
-.footer-copy{font-size:10px !important;margin:0 !important}
-</style>
-<style>
-@media(max-width:760px){
-  #panel-chat.tabpanel:not(.hidden){
-    position:fixed !important;
-    top:0;left:0;right:0;bottom:0;
-    width:100vw;height:100vh;height:100dvh;
-    z-index:9999;
-    background:var(--wa-bg);
-  }
-  #panel-chat .chat-wrap{
-    height:100vh !important;
-    height:100dvh !important;
-  }
-}
-</style>
-<style>
-@media(max-width:760px){
-  #panel-chat.tabpanel:not(.hidden){
-    position:fixed;
-    top:0; left:0; right:0; bottom:0;
-    width:100%; height:100%; height:100dvh;
-    z-index:500;
-    background:var(--wa-bg,#0b141a);
-    display:flex;
-    flex-direction:column;
-    margin:0; padding:0;
-  }
-  #panel-chat .chat-wrap{
-    flex:1;
-    min-height:0;
-    height:auto;
-    display:flex;
-    overflow:hidden;
-  }
-  #panel-chat .chat-pane{
-    flex:1;
-    min-height:0;
-    display:flex;
-    flex-direction:column;
-    overflow:hidden;
-  }
-  #panel-chat #chatMessages{
-    flex:1;
-    min-height:0;
-    overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
-  }
-}
-</style>
-<style>
-@media(max-width:760px){
-  #panel-chat.tabpanel:not(.hidden) ~ #navtabs,
-  #navtabs:has(~ #panel-chat.tabpanel:not(.hidden)){
-    display:none !important;
-  }
-  body:has(#panel-chat.tabpanel:not(.hidden)) #navtabs{
-    display:none !important;
-  }
-}
-</style>
-
-<style>
-@media(max-width:760px){
-  html.chat-open #navtabs{ display:none !important; }
-  html.chat-open body{ position:fixed; width:100%; overflow:hidden; }
-  #panel-chat.tabpanel:not(.hidden){
-    position:fixed !important;
-    top:0; left:0; right:0; bottom:0;
-    width:100vw; height:100vh; height:100dvh;
-    z-index:999999;
-    background:var(--wa-bg,#0b141a);
-    display:flex; flex-direction:column;
-    margin:0; padding:0;
-  }
-  #panel-chat .chat-wrap{ flex:1; min-height:0; display:flex; overflow:hidden; }
-  #panel-chat .chat-pane{ flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
-  #panel-chat #chatMessages{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-}
-</style>
-<script>
-(function(){
-  function tick(){
-    var panel = document.getElementById('panel-chat');
-    if(!panel) return;
-    var open = !panel.classList.contains('hidden');
-    document.documentElement.classList.toggle('chat-open', open);
-  }
-  setInterval(tick, 250);
-  tick();
-  window.addEventListener('resize', function(){
-    var vv = window.visualViewport;
-    if(vv){
-      document.documentElement.style.setProperty('--vh-real', vv.height + 'px');
-    }
-  });
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize', function(){
-      var panel = document.getElementById('panel-chat');
-      if(panel && !panel.classList.contains('hidden')){
-        panel.style.height = window.visualViewport.height + 'px';
-      }
-    });
-  }
-})();
-</script>
-<style>
-@media(max-width:760px){
-  #panel-chat .chat-composer,
-  #panel-chat .composer,
-  #panel-chat [class*="compose"]{
-    padding-bottom:env(safe-area-inset-bottom, 12px) !important;
-    flex-shrink:0 !important;
-  }
-  #panel-chat .chat-pane{
-    padding-bottom:0 !important;
-  }
-}
-</style>
-<style>
-@media(max-width:760px){
-  #panel-chat .chat-input-row{
-    padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 14px) !important;
-    flex-shrink:0 !important;
-  }
-}
-</style>
-<style>
-@media(max-width:760px){
-  #panel-chat .chat-input-row{
-    display:flex !important;
-    align-items:center !important;
-    gap:6px !important;
-    padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px) 8px !important;
-    box-sizing:border-box !important;
-    width:100% !important;
-    max-width:100vw !important;
-    overflow:hidden !important;
-  }
-  #panel-chat .chat-input-row input#chatInput{
-    flex:1 1 auto !important;
-    min-width:0 !important;
-  }
-  #panel-chat .chat-input-row button{
-    flex:0 0 auto !important;
-  }
-}
-</style>

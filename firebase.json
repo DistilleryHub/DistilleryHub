@@ -17,22 +17,21 @@
     "ignore": [
       "firebase/**",
       "functions/**",
+      "tests/**",
       "**/node_modules/**",
       "**/.git/**",
       "**/.firebase/**",
       "**/.DS_Store"
     ],
     "rewrites": [
+      { "source": "/sitemap.xml", "function": "sitemap" },
+      { "source": "/jobs/:id", "function": "renderJob" },
+      { "source": "/articles/:id", "function": "renderArticle" },
       { "source": "**", "destination": "/index.html" }
     ]
   },
   "emulators": {
-    "auth": { "port": 9099 },
     "firestore": { "port": 8080 },
-    "functions": { "port": 5001 },
-    "storage": { "port": 9199 },
-    "hosting": { "port": 5000 },
-    "ui": { "enabled": true, "port": 4000 },
-    "singleProjectMode": true
+    "ui": { "enabled": true }
   }
 }
