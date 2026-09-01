@@ -1,0 +1,13 @@
+{
+  "name": "thedistillerymaster-functions",
+  "description": "Cloud Functions for DistilleryHub — push notifications + SEO server-rendering",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "type": "commonjs",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1",
+    "@google-cloud/firestore": "^7.9.0"
+  },
+  "private": true
+}
