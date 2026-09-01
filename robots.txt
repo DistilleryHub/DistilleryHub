@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://distilleryhub-b1d2d.web.app/sitemap.xml

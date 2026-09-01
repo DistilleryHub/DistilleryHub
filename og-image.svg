@@ -1,0 +1,29 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1420"/>
+      <stop offset="100%" stop-color="#111d2b"/>
+    </linearGradient>
+    <linearGradient id="copper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f0a559"/>
+      <stop offset="100%" stop-color="#a5641f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="80%" cy="20%" r="60%">
+      <stop offset="0%" stop-color="#d98b3f" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#d98b3f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect x="0" y="0" width="1200" height="630" fill="none" stroke="#22334a" stroke-width="1"/>
+  <rect x="90" y="90" width="96" height="96" rx="22" fill="url(#copper)"/>
+  <text x="138" y="150" font-family="JetBrains Mono, monospace" font-size="34" font-weight="700" fill="#1a1006" text-anchor="middle">TDM</text>
+  <text x="90" y="270" font-family="Georgia, serif" font-size="58" font-weight="700" fill="#eef3f6">TheDistilleryMaster</text>
+  <text x="90" y="320" font-family="Georgia, serif" font-size="40" fill="#d98b3f">Network</text>
+  <text x="90" y="380" font-family="Arial, sans-serif" font-size="22" fill="#8ca0b3">Professional networking for distillery, ethanol,</text>
+  <text x="90" y="410" font-family="Arial, sans-serif" font-size="22" fill="#8ca0b3">laboratory and plant professionals</text>
+  <g stroke="#22334a" stroke-width="1">
+    <circle cx="1080" cy="120" r="3" fill="#a5641f"/>
+    <circle cx="1080" cy="510" r="3" fill="#a5641f"/>
+  </g>
+</svg>

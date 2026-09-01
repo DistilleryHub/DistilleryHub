@@ -1,0 +1,11 @@
+{
+  "name": "distilleryhub-rules-tests",
+  "private": true,
+  "description": "Automated tests for firestore.rules — run against the local Firebase Emulator only, never production.",
+  "scripts": {
+    "test": "node firestore.rules.test.js"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4"
+  }
+}

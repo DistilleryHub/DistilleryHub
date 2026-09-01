@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.thedistillerymaster.app",
+      "sha256_cert_fingerprints": [
+        "PASTE_YOUR_SHA256_FINGERPRINT_HERE_AFTER_GENERATING_APP_IN_PWABUILDER"
+      ]
+    }
+  }
+]
