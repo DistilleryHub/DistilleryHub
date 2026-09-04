@@ -1,6 +1,5 @@
-// chat-features.js (updated)
-// Phase-1 Chat features (voice recorder, robust send, quick responses, subject input)
-// Added: optimistic UI, client-side image compression, improved error handling
+// chat-features.js (Phase-1 upgraded)
+// Adds: upload retry & progress, voice preview/send flow, optimistic UI improvements
 
 (function(){
   function onReady(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn); else fn(); }
@@ -15,6 +14,54 @@
     const messagesContainer = document.querySelector('.chat-messages');
     if(!chatRow) return;
 
+    // Helper: XHR upload with progress + retry
+    function uploadToCloudinaryWithProgress(file, onProgress, filename){
+      return new Promise((resolve,reject)=>{
+        const cloudName = window.CLOUDINARY_CLOUD_NAME;
+        const preset = window.CLOUDINARY_UPLOAD_PRESET;
+        if(!cloudName || !preset){ return reject(new Error('Cloudinary config missing')); }
+        const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+
+        let attempts = 0;
+        const maxAttempts = 3;
+        const tryUpload = ()=>{
+          attempts++;
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', url);
+          xhr.responseType = 'json';
+
+          xhr.upload.onprogress = (e)=>{
+            if(e.lengthComputable && typeof onProgress === 'function'){
+              onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          };
+
+          xhr.onload = ()=>{
+            if(xhr.status >= 200 && xhr.status < 300){
+              const res = xhr.response || {};
+              if(res.secure_url) return resolve(res.secure_url);
+              return reject(new Error('No secure_url in upload response'));
+            } else {
+              if(attempts < maxAttempts){
+                const backoff = Math.pow(2, attempts) * 500;
+                setTimeout(tryUpload, backoff);
+              } else { reject(new Error('Upload failed: ' + xhr.statusText || xhr.status)); }
+            }
+          };
+          xhr.onerror = ()=>{
+            if(attempts < maxAttempts){ const backoff = Math.pow(2, attempts) * 500; setTimeout(tryUpload, backoff); }
+            else reject(new Error('Network error during upload'));
+          };
+
+          const fd = new FormData();
+          fd.append('file', file, filename || file.name || 'upload');
+          fd.append('upload_preset', preset);
+          xhr.send(fd);
+        };
+        tryUpload();
+      });
+    }
+
     // --- Subject input ---
     if(!document.getElementById('chatSubject')){
       const subject = document.createElement('input');
@@ -24,7 +71,7 @@
       chatRow.insertAdjacentElement('beforebegin', subject);
     }
 
-    // --- Quick responses --- (same as before)
+    // --- Quick responses UI (unchanged) ---
     function ensureQuickResponses(){
       if(document.getElementById('quickRespBtn')) return;
       const btn = document.createElement('button'); btn.id = 'quickRespBtn'; btn.className = 'chat-attach';
@@ -34,9 +81,7 @@
       const menu = document.createElement('div'); menu.id = 'quickRespMenu'; menu.className = 'mention-dropdown hidden';
       menu.style.position = 'absolute'; menu.style.zIndex = 9999; document.body.appendChild(menu);
 
-      btn.addEventListener('click', async (e)=>{
-        e.stopPropagation(); if(menu.classList.contains('hidden')){ menu.classList.remove('hidden'); await renderQuickResponses(menu); } else { menu.classList.add('hidden'); }
-      });
+      btn.addEventListener('click', async (e)=>{ e.stopPropagation(); if(menu.classList.contains('hidden')){ menu.classList.remove('hidden'); await renderQuickResponses(menu); } else { menu.classList.add('hidden'); } });
       document.addEventListener('click', ()=> menu.classList.add('hidden'));
     }
 
@@ -50,18 +95,10 @@
         if(snap && snap.docs && snap.docs.length){ snap.forEach(d=> list.push({id:d.id, ...d.data()})); }
         if(list.length===0){ list.push({id:'d1', text:'On it — will update you shortly'}); list.push({id:'d2', text:'Thanks — received'}); list.push({id:'d3', text:'Please send more details'}); }
         menuEl.innerHTML = '';
-        list.forEach(item=>{
-          const opt = document.createElement('div'); opt.className = 'mention-option'; opt.style.padding = '8px 12px'; opt.style.cursor = 'pointer'; opt.textContent = item.text;
-          opt.addEventListener('click', ()=>{ chatInput.value = (chatInput.value?chatInput.value + '\n' : '') + item.text; chatInput.focus(); menuEl.classList.add('hidden'); });
-          menuEl.appendChild(opt);
-        });
-        const manage = document.createElement('div'); manage.style.padding='8px'; manage.style.borderTop='1px solid rgba(255,255,255,0.03)';
-        manage.innerHTML = '<button id="addQuickResp" class="btn btn-ghost btn-sm">+ Add</button>';
+        list.forEach(item=>{ const opt = document.createElement('div'); opt.className='mention-option'; opt.style.padding='8px 12px'; opt.style.cursor='pointer'; opt.textContent = item.text; opt.addEventListener('click', ()=>{ chatInput.value = (chatInput.value?chatInput.value + '\n' : '') + item.text; chatInput.focus(); menuEl.classList.add('hidden'); }); menuEl.appendChild(opt); });
+        const manage = document.createElement('div'); manage.style.padding='8px'; manage.style.borderTop='1px solid rgba(255,255,255,0.03)'; manage.innerHTML = '<button id="addQuickResp" class="btn btn-ghost btn-sm">+ Add</button>';
         menuEl.appendChild(manage);
-        menuEl.querySelector('#addQuickResp').addEventListener('click', async ()=>{
-          const txt = prompt('Quick response text'); if(!txt) return;
-          try{ await addDoc(collection(db,'users',currentUser.uid,'quick_responses'), { text: txt, createdAt: serverTimestamp() }); await renderQuickResponses(menuEl); }catch(err){ console.error(err); alert('Could not save quick response'); }
-        });
+        menuEl.querySelector('#addQuickResp').addEventListener('click', async ()=>{ const txt = prompt('Quick response text'); if(!txt) return; try{ await addDoc(collection(db,'users',currentUser.uid,'quick_responses'), { text: txt, createdAt: serverTimestamp() }); await renderQuickResponses(menuEl); }catch(err){ console.error(err); alert('Could not save quick response'); } });
       }catch(err){ console.error(err); menuEl.innerHTML = '<div style="padding:8px">Error loading</div>'; }
     }
     ensureQuickResponses();
@@ -87,20 +124,14 @@
       });
     }
 
-    // Wire existing chatImgInput change to compress
+    // Wire chatImgInput change to compress
     const chatImgInput = document.getElementById('chatImgInput');
     if(chatImgInput){
       chatImgInput.addEventListener('change', async (e)=>{
         const file = e.target.files[0]; if(!file) return;
-        const err = validateImageFile ? validateImageFile(file) : null;
-        if(err){ toast ? toast(err) : alert(err); return; }
-        try{
-          const compressed = await compressImage(file, 1280, 0.75);
-          window.pendingChatImage = compressed; // compressed File
-          // show preview
-          const reader = new FileReader(); reader.onload = ()=>{ document.getElementById('postImgPreview') && (document.getElementById('postImgPreview').innerHTML = `<div class="imgpreview"><img src="${reader.result}"><button onclick="clearPostImage()">×</button></div>`); };
-          reader.readAsDataURL(compressed);
-        }catch(err){ console.error(err); window.pendingChatImage = file; }
+        const err = typeof validateImageFile === 'function' ? validateImageFile(file) : null;
+        if(err){ typeof toast === 'function' ? toast(err) : alert(err); return; }
+        try{ const compressed = await compressImage(file, 1280, 0.75); window.pendingChatImage = compressed; const reader = new FileReader(); reader.onload = ()=>{ document.getElementById('postImgPreview') && (document.getElementById('postImgPreview').innerHTML = `<div class="imgpreview"><img src="${reader.result}"><button onclick="clearPostImage()">×</button></div>`); }; reader.readAsDataURL(compressed); }catch(err){ console.error(err); window.pendingChatImage = file; }
       });
     }
 
@@ -112,64 +143,90 @@
         const col = document.createElement('div'); col.className = 'msg-col';
         const bubble = document.createElement('div'); bubble.className = 'msg-bubble'; bubble.innerText = obj.text || '';
         const meta = document.createElement('div'); meta.className = 'msg-time'; meta.innerText = 'Sending…';
-        const spinner = document.createElement('span'); spinner.className='spinner'; spinner.style.marginLeft='8px'; meta.appendChild(spinner);
-        col.appendChild(bubble); col.appendChild(meta); row.appendChild(col);
-        messagesContainer.appendChild(row);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        // return a temporary id (DOM element) to identify
-        return row;
+        const prog = document.createElement('div'); prog.className = 'upload-progress'; prog.style.width='160px'; prog.style.marginTop='6px'; prog.style.height='6px'; prog.style.background='rgba(255,255,255,0.06)'; prog.style.borderRadius='6px'; prog.innerHTML = '<div style="width:0%;height:100%;background:linear-gradient(90deg,#f0a559,#a5641f);border-radius:6px"></div>';
+        col.appendChild(bubble); col.appendChild(meta); col.appendChild(prog); row.appendChild(col);
+        messagesContainer.appendChild(row); messagesContainer.scrollTop = messagesContainer.scrollHeight; return {row, progBar: prog.querySelector('div')};
       }catch(e){ console.error(e); return null; }
     }
-    function markMessageSent(domRow, realId){
-      try{ if(!domRow) return; domRow.removeAttribute('data-pending'); const meta = domRow.querySelector('.msg-time'); if(meta){ meta.textContent = new Date().toLocaleTimeString(); } domRow.dataset.msgId = realId; }
-      catch(e){ console.error(e); }
-    }
-    function markMessageFailed(domRow){ if(!domRow) return; domRow.querySelector('.msg-bubble')?.classList.add('msg-failed'); const meta = domRow.querySelector('.msg-time'); if(meta) meta.textContent = 'Failed'; }
+    function markMessageSent(domObj, realId){ try{ if(!domObj) return; domObj.row.removeAttribute('data-pending'); const meta = domObj.row.querySelector('.msg-time'); if(meta){ meta.textContent = new Date().toLocaleTimeString(); } domObj.row.dataset.msgId = realId; domObj.progBar && (domObj.progBar.style.width = '100%'); setTimeout(()=> domObj.progBar && (domObj.progBar.style.opacity='0'), 600); }catch(e){ console.error(e); } }
+    function markMessageFailed(domObj){ if(!domObj) return; domObj.row.querySelector('.msg-bubble')?.classList.add('msg-failed'); const meta = domObj.row.querySelector('.msg-time'); if(meta) meta.textContent = 'Failed'; }
     window.renderOutgoingMessage = renderOutgoingMessage; window.markMessageSent = markMessageSent; window.markMessageFailed = markMessageFailed;
 
-    // --- Voice recorder (same, with auto-send) ---
+    // --- Voice recorder with Preview & Send ---
     const btnVoice = document.getElementById('btnVoiceMsg'); const voiceIndicator = document.getElementById('voiceRecordIndicator');
     let mediaRecorder, recordedChunks = [], recordingTimer=null, recordStartAt=0;
     function updateTimer(){ if(!voiceIndicator) return; const el = document.getElementById('voiceRecordTimer'); if(!el) return; const s = Math.floor((Date.now()-recordStartAt)/1000); const mm = String(Math.floor(s/60)).padStart(2,'0'); const ss = String(s%60).padStart(2,'0'); el.textContent = mm+':'+ss; }
-    if(btnVoice){ btnVoice.addEventListener('click', async ()=>{
-      if(!mediaRecorder || mediaRecorder.state==='inactive'){
-        try{ const stream = await navigator.mediaDevices.getUserMedia({ audio:true }); mediaRecorder = new MediaRecorder(stream); recordedChunks = [];
-          mediaRecorder.ondataavailable = e=>{ if(e.data && e.data.size) recordedChunks.push(e.data); };
-          mediaRecorder.onstop = async ()=>{
-            const blob = new Blob(recordedChunks, { type:'audio/webm' }); window.pendingVoiceBlob = blob;
-            // optimistic render
-            const optimistic = renderOutgoingMessage({ text: '[Voice message]', subject: document.getElementById('chatSubject')?.value || '' });
-            try{ await window.robustSendMessage(window.activeConvoId || window.convoId || window.currentConversationId); // will mark sent
-              // Firestore write in robustSendMessage will call markMessageSent
-            }catch(err){ console.error(err); markMessageFailed(optimistic); }
-            clearInterval(recordingTimer); voiceIndicator?.classList.add('hidden');
-          };
-          mediaRecorder.start(); recordStartAt = Date.now(); voiceIndicator?.classList.remove('hidden'); recordingTimer = setInterval(updateTimer, 500);
-        }catch(err){ console.error('Microphone error',err); alert('Microphone access required'); }
-      } else if(mediaRecorder.state==='recording'){ mediaRecorder.stop(); }
-    }); }
 
-    // --- robustSendMessage updated to use optimistic UI & compressed images ---
-    window.robustSendMessage = async function(convoId){
+    function showVoicePreview(blob){
+      // create modal-like preview
+      const modal = document.createElement('div'); modal.className='modal-backdrop'; modal.style.display='flex';
+      const card = document.createElement('div'); card.className='modal'; card.style.maxWidth='420px';
+      const head = document.createElement('div'); head.className='modal-head'; head.innerHTML = '<h3>Voice message preview</h3>';
+      const body = document.createElement('div'); body.style.padding='12px'; const audio = document.createElement('audio'); audio.controls = true; audio.src = URL.createObjectURL(blob); audio.style.width='100%'; body.appendChild(audio);
+      const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='10px';
+      const sendBtn = document.createElement('button'); sendBtn.className='btn btn-primary'; sendBtn.textContent='Send';
+      const cancelBtn = document.createElement('button'); cancelBtn.className='btn btn-ghost'; cancelBtn.textContent='Cancel';
+      const rerecBtn = document.createElement('button'); rerecBtn.className='btn btn-ghost'; rerecBtn.textContent='Re-record';
+      actions.appendChild(sendBtn); actions.appendChild(rerecBtn); actions.appendChild(cancelBtn);
+      card.appendChild(head); card.appendChild(body); card.appendChild(actions); modal.appendChild(card); document.body.appendChild(modal);
+
+      sendBtn.addEventListener('click', async ()=>{ window.pendingVoiceBlob = blob; // call robustSendMessage
+        const convoId = window.activeConvoId || window.convoId || window.currentConversationId || null; // optimistic render
+        const optimistic = renderOutgoingMessage({ text:'[Voice message]' });
+        try{ await window.robustSendMessage(convoId, optimistic); document.body.removeChild(modal); }catch(err){ console.error(err); markMessageFailed(optimistic); alert('Send failed'); }
+      });
+      cancelBtn.addEventListener('click', ()=>{ document.body.removeChild(modal); });
+      rerecBtn.addEventListener('click', ()=>{ document.body.removeChild(modal); startRecording(); });
+    }
+
+    async function startRecording(){
+      try{ const stream = await navigator.mediaDevices.getUserMedia({ audio:true }); mediaRecorder = new MediaRecorder(stream); recordedChunks = [];
+        mediaRecorder.ondataavailable = e=>{ if(e.data && e.data.size) recordedChunks.push(e.data); };
+        mediaRecorder.onstop = ()=>{ const blob = new Blob(recordedChunks, { type:'audio/webm' }); showVoicePreview(blob); clearInterval(recordingTimer); voiceIndicator?.classList.add('hidden'); };
+        mediaRecorder.start(); recordStartAt = Date.now(); voiceIndicator?.classList.remove('hidden'); recordingTimer = setInterval(updateTimer, 500);
+      }catch(err){ console.error('Mic error',err); alert('Microphone access required'); }
+    }
+
+    if(btnVoice){ btnVoice.addEventListener('click', ()=>{ if(!mediaRecorder || mediaRecorder.state==='inactive'){ startRecording(); } else if(mediaRecorder.state==='recording'){ mediaRecorder.stop(); } }); }
+
+    // --- robustSendMessage with progress & retry ---
+    // Accepts optional optimisticDom object returned by renderOutgoingMessage for progress updates
+    window.robustSendMessage = async function(convoId, optimisticDom){
       const input = document.getElementById('chatInput'); const subjectEl = document.getElementById('chatSubject');
       const text = (input?.value || '').trim(); const subject = (subjectEl?.value || '').trim();
-      if(!text && !window.pendingChatImage && !window.pendingVoiceBlob && !(document.getElementById('chatVideoInput')?.files?.length)) return;
+      const vidInput = document.getElementById('chatVideoInput');
+      if(!text && !window.pendingChatImage && !window.pendingVoiceBlob && !(vidInput && vidInput.files && vidInput.files.length)) return;
       const btn = document.getElementById('btnSendMsg'); btn.disabled = true; const prevHtml = btn.innerHTML; btn.innerHTML = '<span class="spinner"></span>';
 
-      const optimistic = renderOutgoingMessage({ senderUid: currentUser?.uid, text: text || (window.pendingVoiceBlob? '[Voice message]' : ''), subject });
+      const domObj = optimisticDom || renderOutgoingMessage({ senderUid: currentUser?.uid, text: text || (window.pendingVoiceBlob? '[Voice message]' : ''), subject });
       try{
         let imageURL='', audioURL='', videoURL='';
-        if(window.pendingChatImage){ if(typeof uploadToCloudinary === 'function'){ imageURL = await uploadToCloudinary(window.pendingChatImage); } else throw new Error('uploadToCloudinary not available'); }
-        if(window.pendingVoiceBlob){ if(typeof uploadRawToCloudinary === 'function'){ audioURL = await uploadRawToCloudinary(window.pendingVoiceBlob, 'voice-message.webm'); } else throw new Error('uploadRawToCloudinary not available'); }
-        const vidInput = document.getElementById('chatVideoInput'); if(vidInput && vidInput.files && vidInput.files[0]){ const f = vidInput.files[0]; if(typeof uploadRawToCloudinary === 'function'){ videoURL = await uploadRawToCloudinary(f, f.name||'video.mp4'); } }
-        const msg = { senderUid: currentUser?.uid || null, text: text || '', subject: subject || '', messageType: audioURL ? 'audio' : (videoURL ? 'video' : (imageURL ? 'image' : 'text')), imageURL, audioURL, videoURL, createdAt: serverTimestamp() };
+        // image
+        if(window.pendingChatImage){
+          const onProgress = (p)=>{ if(domObj && domObj.progBar) domObj.progBar.style.width = p + '%'; };
+          imageURL = await uploadToCloudinaryWithProgress(window.pendingChatImage, onProgress);
+        }
+        // audio
+        if(window.pendingVoiceBlob){
+          const onProgress = (p)=>{ if(domObj && domObj.progBar) domObj.progBar.style.width = p + '%'; };
+          audioURL = await uploadToCloudinaryWithProgress(window.pendingVoiceBlob, onProgress, 'voice-message.webm');
+        }
+        // video
+        if(vidInput && vidInput.files && vidInput.files[0]){
+          const f = vidInput.files[0]; if(f.size > 20*1024*1024) throw new Error('Video too large');
+          const onProgress = (p)=>{ if(domObj && domObj.progBar) domObj.progBar.style.width = p + '%'; };
+          videoURL = await uploadToCloudinaryWithProgress(f, onProgress, f.name || 'video.mp4');
+        }
+
+        const message = { senderUid: currentUser?.uid || null, text: text || '', subject: subject || '', messageType: audioURL ? 'audio' : (videoURL ? 'video' : (imageURL ? 'image' : 'text')), imageURL, audioURL, videoURL, createdAt: serverTimestamp() };
+
         if(window.db && typeof addDoc === 'function'){
-          const docRef = await addDoc(collection(db, 'conversations', convoId, 'messages'), msg);
-          // clear
+          const docRef = await addDoc(collection(db, 'conversations', convoId, 'messages'), message);
+          // clear inputs
           if(input) input.value=''; if(subjectEl) subjectEl.value=''; window.pendingChatImage=null; window.pendingVoiceBlob=null; if(vidInput) vidInput.value=''; if(chatImgInput) chatImgInput.value='';
-          markMessageSent(optimistic, docRef.id);
+          markMessageSent(domObj, docRef.id);
         } else throw new Error('Firestore helpers not available');
-      }catch(err){ console.error(err); markMessageFailed(optimistic); alert(err?.message || 'Message send failed'); }
+      }catch(err){ console.error(err); markMessageFailed(domObj); alert(err?.message || 'Message send failed'); }
       finally{ btn.disabled=false; btn.innerHTML = prevHtml || '➤'; }
     };
 
@@ -186,8 +243,8 @@
     }
 
     // CSS tweaks
-    const style = document.createElement('style'); style.textContent = `@media(max-width:760px){ .chat-messages{ padding-bottom: calc(96px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch;} .chat-input-row .chat-attach, .chat-input-row #btnSendMsg { min-width:44px; min-height:44px;} .post-img img, .msg-img { max-width:100%; height:auto; object-fit:cover; } } .msg-failed{opacity:0.6;border:1px solid rgba(255,80,80,0.6);} `; document.head.appendChild(style);
+    const style = document.createElement('style'); style.textContent = `@media(max-width:760px){ .chat-messages{ padding-bottom: calc(96px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch;} .chat-input-row .chat-attach, .chat-input-row #btnSendMsg { min-width:44px; min-height:44px;} .post-img img, .msg-img { max-width:100%; height:auto; object-fit:cover; } } .msg-failed{opacity:0.6;border:1px solid rgba(255,80,80,0.6);} .upload-progress{opacity:1;transition:opacity .3s ease;} `; document.head.appendChild(style);
 
-    console.log('Chat features (Phase‑1, improved) initialized');
+    console.log('Chat features (Phase‑1 upgraded) initialized');
   });
 })();
