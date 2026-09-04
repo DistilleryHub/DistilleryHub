@@ -1,0 +1,14 @@
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Firebase
+        run: npx firebase-tools deploy --only hosting,firestore:rules --project distilleryhub-b1d2d --token "${{ secrets.FIREBASE_TOKEN }}"
