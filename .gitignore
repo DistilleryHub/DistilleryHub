@@ -1,0 +1,11 @@
+# DistilleryHub repository ignores
+
+# Node modules
+node_modules/
+functions/node_modules/
+
+# Local env files
+.env
+
+# Misc
+.DS_Store

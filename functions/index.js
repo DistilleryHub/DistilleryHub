@@ -49,14 +49,21 @@ const firestoreAdminClient = new firestoreAdminV1.FirestoreAdminClient();
 /* only lets you restore the whole database, not browse individual   */
 /* export files the way this function's exports allow.                */
 /* ---------------------------------------------------------------- */
-const BACKUP_BUCKET = "gs://YOUR-PROJECT-ID-firestore-backups"; // <-- set this
+// Read the backup bucket from an environment variable so the function
+// can be safely deployed without leaking a placeholder bucket name.
+const BACKUP_BUCKET = process.env.FIRESTORE_BACKUP_BUCKET || ""; // set FIRESTORE_BACKUP_BUCKET in Functions config
 
 exports.scheduledFirestoreExport = onSchedule("every 24 hours", async () => {
-  if (BACKUP_BUCKET.includes("YOUR-PROJECT-ID")) {
-    console.warn("scheduledFirestoreExport: BACKUP_BUCKET not configured — skipping. See setup notes above this function.");
+  if (!BACKUP_BUCKET) {
+    console.warn("scheduledFirestoreExport: FIRESTORE_BACKUP_BUCKET not configured — skipping. See setup notes above this function.");
     return;
   }
-  const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || admin.instanceId().app.options.projectId;
+
+  // Robust projectId detection with several fallbacks.
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT ||
+    (admin.app && admin.app().options && admin.app().options.projectId) ||
+    (admin.apps && admin.apps[0] && admin.apps[0].options && admin.apps[0].options.projectId);
+
   const databaseName = firestoreAdminClient.databasePath(projectId, "(default)");
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   await firestoreAdminClient.exportDocuments({
@@ -125,7 +132,8 @@ exports.sendNotificationPush = onDocumentCreated("notifications/{notificationId}
   const { title, body } = notificationCopy(n);
   const chatTypes = ["message", "call", "missed_call", "group_call", "mention", "group_invite"];
 
-  const resp = await admin.messaging().sendEachForMulticast({
+  // Use the current admin SDK method sendMulticast (sendEachForMulticast is not documented).
+  const resp = await admin.messaging().sendMulticast({
     tokens,
     notification: { title, body },
     webpush: {
@@ -146,6 +154,7 @@ exports.sendNotificationPush = onDocumentCreated("notifications/{notificationId}
     }
   });
   if (deadTokens.length) {
+    // ArrayRemove with many tokens could be expensive; chunk it if needed.
     await userSnap.ref.update({
       fcmTokens: admin.firestore.FieldValue.arrayRemove(...deadTokens)
     });
@@ -167,15 +176,20 @@ exports.matchJobAlerts = onDocumentCreated("jobs/{jobId}", async (event) => {
   if (alertsSnap.empty) return;
 
   const notifiedUids = new Set();
-  const writes = [];
-  alertsSnap.forEach((docSnap) => {
+  // Use batched writes to avoid many individual add() calls and to stay under limits.
+  const batches = [];
+  let batch = db.batch();
+  let ops = 0;
+
+  for (const docSnap of alertsSnap.docs) {
     const alert = docSnap.data();
-    if (!alert.uid || !alert.keyword) return;
-    if (alert.uid === job.postedByUid) return; // don't notify the poster about their own listing
-    if (notifiedUids.has(alert.uid)) return; // avoid duplicate notifications from multiple matching keywords
+    if (!alert.uid || !alert.keyword) continue;
+    if (alert.uid === job.postedByUid) continue; // don't notify the poster about their own listing
+    if (notifiedUids.has(alert.uid)) continue; // avoid duplicate notifications from multiple matching keywords
     if (haystack.includes(String(alert.keyword).toLowerCase())) {
       notifiedUids.add(alert.uid);
-      writes.push(db.collection("notifications").add({
+      const notifRef = db.collection("notifications").doc();
+      batch.set(notifRef, {
         userId: alert.uid,
         type: "job_alert",
         fromUid: job.postedByUid || "",
@@ -185,10 +199,22 @@ exports.matchJobAlerts = onDocumentCreated("jobs/{jobId}", async (event) => {
         jobTitle: job.title || "",
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
-      }));
+      });
+      ops++;
+      // commit before reaching Firestore batch limit (500)
+      if (ops >= 400) {
+        batches.push(batch.commit());
+        batch = db.batch();
+        ops = 0;
+      }
     }
-  });
-  await Promise.all(writes);
+  }
+
+  if (ops > 0) {
+    batches.push(batch.commit());
+  }
+
+  if (batches.length) await Promise.all(batches);
 });
 
 /* ---------------------------------------------------------------- */
@@ -196,7 +222,7 @@ exports.matchJobAlerts = onDocumentCreated("jobs/{jobId}", async (event) => {
 /* ---------------------------------------------------------------- */
 
 function esc(s) {
-  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  return String(s || "").replace(/[&<>\"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function pageShell({ title, description, canonical, image, jsonLd, bodyHtml }) {
