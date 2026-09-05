@@ -135,6 +135,13 @@ input,textarea,select{font-family:inherit}
 .brand small{display:block;font-family:var(--font-body);font-weight:500;font-size:10.5px;color:var(--text-faint);letter-spacing:.6px;text-transform:uppercase;margin-top:1px;}
 
 .navtabs{display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none;}
+@media(max-width:900px){
+  .navtabs{display:none;}
+  #btnGoChat{display:none;}
+  #btnSignOut{display:none;}
+  .brand small{display:none;}
+  .top-right{margin-left:auto;}
+}
 .navtabs::-webkit-scrollbar{display:none}
 .navtab{
   padding:8px 13px;border-radius:8px;border:none;background:transparent;color:var(--text-dim);
@@ -305,7 +312,8 @@ input,textarea,select{font-family:inherit}
 .msg-row.mine .msg-bubble{background:var(--wa-bubble-out);color:var(--wa-text);}
 .msg-time{font-size:10.5px;color:var(--wa-text-dim);margin-top:2px;text-align:right;}
 .msg-row.mine .msg-time{text-align:right;}
-.chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--wa-divider);background:var(--wa-header);align-items:center;}
+.chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--wa-divider);background:var(--wa-header);align-items:center;position:relative;}
+.chat-input-row .dropdown{top:auto;bottom:48px;left:0;right:auto;}
 .chat-input-row input{flex:1;background:var(--wa-panel);border:1px solid var(--wa-divider);border-radius:22px;padding:11px 16px;color:var(--wa-text);font-size:14px;}
 .chat-input-row input:focus{outline:none;border-color:var(--wa-accent);}
 .chat-input-row #btnSendMsg{background:var(--wa-accent);color:#06231d;border:none;border-radius:50%;width:40px;height:40px;font-size:16px;flex:none;}
@@ -324,6 +332,11 @@ input,textarea,select{font-family:inherit}
 .msg-edited{font-size:10px;color:var(--wa-text-dim);font-style:italic;}
 .msg-sender-name{font-size:11.5px;font-weight:700;color:var(--wa-accent);margin-bottom:2px;padding-left:2px;}
 .msg-audio{max-width:230px;height:36px;}
+.msg-video{max-width:230px;border-radius:8px;display:block;margin-bottom:4px;}
+.msg-location-card,.msg-contact-card{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;text-decoration:none;color:inherit;margin-bottom:2px;min-width:180px;}
+.msg-location-icon,.msg-contact-icon{font-size:20px;flex:none;}
+.msg-location-title,.msg-contact-name{font-size:13px;font-weight:600;}
+.msg-location-sub,.msg-contact-phone{font-size:11px;color:var(--wa-text-dim);}
 .msg-reactions{background:var(--wa-header);border:1px solid var(--wa-divider);border-radius:10px;padding:1px 6px;font-size:12px;margin-top:2px;align-self:flex-start;}
 .msg-row.mine .msg-reactions{align-self:flex-end;}
 .msg-reply-quote{border-left:3px solid var(--wa-accent);background:rgba(255,255,255,.06);padding:4px 8px;border-radius:6px;font-size:12px;color:var(--wa-text-dim);margin-bottom:4px;}
@@ -398,13 +411,20 @@ input,textarea,select{font-family:inherit}
   .mobilenav{
     display:flex;position:fixed;bottom:0;left:0;right:0;z-index:40;
     background:rgba(16,28,41,.97);border-top:1px solid var(--border);backdrop-filter:blur(10px);
-    padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+    padding:4px 2px calc(4px + env(safe-area-inset-bottom));
   }
-  .mobilenav button{flex:1;background:none;border:none;color:var(--text-faint);font-size:10px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;font-weight:600;}
+  .mobilenav button{flex:1;background:none;border:none;color:var(--text-faint);font-size:10.5px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px;font-weight:600;min-height:52px;justify-content:center;}
   .mobilenav button.active{color:var(--copper-bright);}
-  .mobilenav .dot{width:18px;height:18px;border-radius:5px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;}
-  .mobilenav button.active .dot{border-color:var(--copper-dark);color:var(--copper-bright)}
+  .mobilenav .navicon{font-size:21px;line-height:1;position:relative;}
 }
+.more-sheet{background:var(--card);border-top-left-radius:18px;border-top-right-radius:18px;
+  position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;padding:10px 8px calc(14px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;box-shadow:0 -10px 30px rgba(0,0,0,.5);}
+.more-sheet-handle{width:36px;height:4px;border-radius:3px;background:var(--border);margin:4px auto 10px;}
+.more-sheet-item{display:flex;align-items:center;gap:12px;background:none;border:none;color:var(--text);font-size:15px;padding:13px 14px;border-radius:10px;text-align:left;width:100%;}
+.more-sheet-item:active{background:var(--card-2);}
+.more-sheet-divider{height:1px;background:var(--border);margin:6px 4px;}
+@media(min-width:901px){#moreMenuBackdrop{display:none !important;}}
 
 /* footer / connect with us */
 .appfooter{max-width:1180px;margin:8px auto 90px;padding:0 20px;}
@@ -899,15 +919,29 @@ input,textarea,select{font-family:inherit}
 
 <!-- mobile bottom nav -->
 <div class="mobilenav" id="mobilenav">
-  <button data-tab="feed" class="active"><span class="dot">F</span>Feed</button>
-  <button data-tab="network"><span class="dot">N</span>Network</button>
-  <button data-tab="jobs"><span class="dot">J</span>Jobs</button>
-  <button data-tab="articles"><span class="dot">A</span>Articles</button>
-  <button data-tab="status"><span class="dot">S</span>Status</button>
-  <button data-tab="market"><span class="dot">M</span>Market</button>
-  <button data-tab="videos"><span class="dot">V</span>Videos</button>
-  <button data-tab="files"><span class="dot">📁</span>Files</button>
-  <button data-tab="chat"><span class="dot">✉</span>Chat</button>
+  <button data-tab="feed" class="active"><span class="navicon">🏠</span>Feed</button>
+  <button data-tab="network"><span class="navicon">👥</span>Network</button>
+  <button data-tab="jobs"><span class="navicon">💼</span>Jobs</button>
+  <button data-tab="chat"><span class="navicon">💬<span class="badge-dot hidden" id="mobileChatBadge">0</span></span>Chat</button>
+  <button id="btnMoreMenu" type="button"><span class="navicon">☰</span>More</button>
+</div>
+
+<!-- MORE MENU SHEET (mobile) -->
+<div class="modal-backdrop hidden" id="moreMenuBackdrop" onclick="if(event.target===this) closeModal('moreMenuBackdrop')">
+  <div class="more-sheet">
+    <div class="more-sheet-handle"></div>
+    <button class="more-sheet-item" data-tab="articles">📰 Articles</button>
+    <button class="more-sheet-item" data-tab="status">🟢 Status</button>
+    <button class="more-sheet-item" data-tab="market">🛒 Market</button>
+    <button class="more-sheet-item" data-tab="videos">🎬 Videos</button>
+    <button class="more-sheet-item" data-tab="files">📁 Files</button>
+    <button class="more-sheet-item" data-tab="learning">🎓 Learning</button>
+    <button class="more-sheet-item hidden" data-tab="admin" id="moreMenuAdmin">🛡️ Admin</button>
+    <div class="more-sheet-divider"></div>
+    <button class="more-sheet-item" id="moreMenuSaved">🔖 Saved items</button>
+    <button class="more-sheet-item" id="moreMenuNotifSettings">⚙️ Notification settings</button>
+    <button class="more-sheet-item" id="moreMenuSignOut">🚪 Sign out</button>
+  </div>
 </div>
 
 <!-- PROFILE MODAL -->
@@ -1415,7 +1449,7 @@ document.getElementById('btnGoogleAuth').addEventListener('click', async ()=>{
     if(!snap.exists()){
       await setDoc(doc(db,'users',cred.user.uid), {
         name: cred.user.displayName || 'Member', headline:'', company:'', location:'', bio:'',
-        photoURL: cred.user.photoURL || '', blocked:[], isAdmin:false,
+        photoURL: cred.user.photoURL || '', blocked:[], isAdmin:false, isBanned:false, isVerified:false,
         createdAt: serverTimestamp()
       });
     }
@@ -1607,7 +1641,7 @@ document.getElementById('mpinForm').addEventListener('submit', async (e)=>{
       await updateProfile(cred.user, { displayName: name });
       await setDoc(doc(db,'users',cred.user.uid), {
         name, headline:'', company:'', location:'', bio:'', photoURL:'',
-        mobile: `+91${cleanMobile}`, blocked:[], isAdmin:false,
+        mobile: `+91${cleanMobile}`, blocked:[], isAdmin:false, isBanned:false, isVerified:false,
         createdAt: serverTimestamp()
       });
     } else {
@@ -1627,7 +1661,7 @@ onAuthStateChanged(auth, async (user)=>{
     if(!snap.exists()){
       await setDoc(doc(db,'users',user.uid), {
         name: user.displayName || 'Member', headline:'', company:'', location:'', bio:'',
-        photoURL:'', blocked:[], isAdmin:false,
+        photoURL:'', blocked:[], isAdmin:false, isBanned:false, isVerified:false,
         createdAt: serverTimestamp()
       });
       snap = await getDoc(doc(db,'users',user.uid));
@@ -1638,6 +1672,7 @@ onAuthStateChanged(auth, async (user)=>{
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('app').classList.add('show');
     document.getElementById('navAdminTab').classList.toggle('hidden', !currentProfile.isAdmin);
+    document.getElementById('moreMenuAdmin').classList.toggle('hidden', !currentProfile.isAdmin);
     renderSidebar();
     renderVerifyBanner();
     startFeed();
@@ -1714,6 +1749,8 @@ function switchTab(tab, fromPopstate){
   document.getElementById('panel-'+tab).classList.remove('hidden');
   document.querySelectorAll('.navtab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   document.querySelectorAll('.mobilenav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  const overflowTabs = ['articles','status','market','videos','files','learning','admin'];
+  document.getElementById('btnMoreMenu').classList.toggle('active', overflowTabs.includes(tab));
   if(tab==='network') renderNetwork();
   if(tab==='jobs') startJobs();
   if(tab==='articles') startArticles();
@@ -1731,6 +1768,24 @@ document.querySelectorAll('[data-tab]').forEach(el=>{
 });
 document.getElementById('btnGoChat').addEventListener('click', ()=> switchTab('chat'));
 document.getElementById('btnNotifBell').addEventListener('click', ()=> openNotifPanel());
+
+/* ================= MORE MENU (mobile bottom-nav overflow) ================= */
+document.getElementById('btnMoreMenu').addEventListener('click', ()=> openModal('moreMenuBackdrop'));
+document.querySelectorAll('.more-sheet-item[data-tab]').forEach(el=>{
+  el.addEventListener('click', ()=> closeModal('moreMenuBackdrop'));
+});
+document.getElementById('moreMenuSaved').addEventListener('click', ()=>{
+  closeModal('moreMenuBackdrop');
+  openSavedItems();
+});
+document.getElementById('moreMenuNotifSettings').addEventListener('click', ()=>{
+  closeModal('moreMenuBackdrop');
+  openNotifSettings();
+});
+document.getElementById('moreMenuSignOut').addEventListener('click', ()=>{
+  closeModal('moreMenuBackdrop');
+  signOut(auth);
+});
 
 /* ================= BACK BUTTON / HISTORY ================= */
 // Without this, Android's back button (and the browser's own back) has no
@@ -3255,6 +3310,11 @@ function startConvos(){
     const badge = document.getElementById('chatBadge');
     badge.textContent = totalUnread > 9 ? '9+' : totalUnread;
     badge.classList.toggle('hidden', totalUnread===0);
+    const mobileBadge = document.getElementById('mobileChatBadge');
+    if(mobileBadge){
+      mobileBadge.textContent = totalUnread > 9 ? '9+' : totalUnread;
+      mobileBadge.classList.toggle('hidden', totalUnread===0);
+    }
     renderConvoList(items);
   }, (err)=>console.error(err));
 }
@@ -3630,8 +3690,9 @@ async function renderChatPane(convoId){
     <div class="voice-record-indicator hidden" id="voiceRecordIndicator">🔴 Recording <span id="voiceRecordTimer">00:00</span> — tap 🎤 to send</div>
     <div class="mention-dropdown hidden" id="mentionDropdown"></div>
     <div class="chat-input-row">
-      <button class="chat-attach" id="btnChatAttach" title="Send photo">📎</button>
+      <button class="chat-attach" id="btnChatAttach" title="Attach">➕</button>
       <input type="file" id="chatImgInput" accept="image/*" class="hidden">
+      <input type="file" id="chatVidInput" accept="video/*" class="hidden">
       <button class="chat-attach" id="btnVoiceMsg" title="Record voice message">🎤</button>
       <input type="text" id="chatInput" placeholder="Write a message…">
       <button class="btn btn-primary btn-icon" id="btnSendMsg">➤</button>
@@ -3641,13 +3702,19 @@ async function renderChatPane(convoId){
     if(e.key==='Enter' && document.getElementById('mentionDropdown').classList.contains('hidden')){ sendMessage(convoId); }
   });
   document.getElementById('chatInput').addEventListener('input', ()=>{ notifyTyping(convoId); if(isGroup) handleMentionTyping(); });
-  document.getElementById('btnChatAttach').addEventListener('click', ()=> document.getElementById('chatImgInput').click());
+  document.getElementById('btnChatAttach').addEventListener('click', (e)=> openChatAttachMenu(e.currentTarget, convoId));
   document.getElementById('btnVoiceMsg').addEventListener('click', ()=> toggleVoiceRecording(convoId));
   document.getElementById('chatImgInput').addEventListener('change', (e)=>{
     const file = e.target.files[0]; if(!file) return;
     const err = validateImageFile(file); if(err){ toast(err); return; }
     pendingChatImage = file;
     sendMessage(convoId);
+  });
+  document.getElementById('chatVidInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    if(!file.type.startsWith('video/')){ toast('Please choose a video file'); return; }
+    if(file.size > 25*1024*1024){ toast('Video is too large — please choose a file under 25MB'); return; }
+    sendVideoMessage(convoId, file);
   });
 
   // presence + 1-1-only typing display (groups just show a generic hint below)
@@ -3729,6 +3796,17 @@ function renderMessages(msgs){
     const senderNameHtml = (activeIsGroup && !mine) ? `<div class="msg-sender-name">${esc(senderDisplayName)}</div>` : '';
     const imgHtml = m.imageURL ? `<img class="msg-img" src="${esc(m.imageURL)}" loading="lazy">` : '';
     const audioHtml = m.audioURL ? `<audio controls src="${esc(m.audioURL)}" class="msg-audio"></audio>` : '';
+    const videoHtml = m.videoURL ? `<video controls class="msg-video" src="${esc(m.videoURL)}"></video>` : '';
+    const locationHtml = (m.messageType==='location' && m.lat!=null) ? `
+      <a class="msg-location-card" href="https://www.google.com/maps?q=${m.lat},${m.lng}" target="_blank" rel="noopener noreferrer">
+        <div class="msg-location-icon">📍</div>
+        <div><div class="msg-location-title">Location shared</div><div class="msg-location-sub">Open in Google Maps</div></div>
+      </a>` : '';
+    const contactHtml = (m.messageType==='contact') ? `
+      <div class="msg-contact-card">
+        <div class="msg-contact-icon">👤</div>
+        <div><div class="msg-contact-name">${esc(m.contactName||'Contact')}</div><div class="msg-contact-phone">${esc(m.contactPhone||'')}</div></div>
+      </div>` : '';
     const textHtml = m.text ? highlightMentionsHtml(m.text, (m.mentions||[]).map(uid=>activeMemberNames[uid]).filter(Boolean)) : '';
     const replyHtml = m.replyToId ? `<div class="msg-reply-quote">↩ ${esc(m.replyToSender||'')}: ${esc((m.replyToText||'').slice(0,60))}</div>` : '';
     const tickHtml = mine ? `<span class="msg-tick ${m.seen?'seen':''}">${m.seen?'✓✓':'✓'}</span>` : '';
@@ -3738,7 +3816,7 @@ function renderMessages(msgs){
       <div class="msg-col">
         ${senderNameHtml}
         <div class="msg-bubble-wrap">
-          <div class="msg-bubble">${pinnedHtml}${replyHtml}${imgHtml}${audioHtml}${textHtml}</div>
+          <div class="msg-bubble">${pinnedHtml}${replyHtml}${imgHtml}${videoHtml}${audioHtml}${locationHtml}${contactHtml}${textHtml}</div>
           <button class="msg-menu-btn" onclick="openMsgMenu(this,'${activeConvoId}','${m.id}',${mine})">⋯</button>
         </div>
         ${renderReactionsHtml(m.reactions)}
@@ -3858,6 +3936,70 @@ function highlightMentionsHtml(text, mentionedNames){
     escaped = escaped.split(`@${safe}`).join(`<span class="mention-tag">@${safe}</span>`);
   });
   return escaped;
+}
+
+/* ---------------- Chat attach menu (Photo / Video / Location / Contact) ---------------- */
+window.openChatAttachMenu = function(anchorEl, convoId){
+  const html = `
+    <button onclick="document.getElementById('chatImgInput').click();closeAllDropdowns()">📷 Photo</button>
+    <button onclick="document.getElementById('chatVidInput').click();closeAllDropdowns()">🎥 Video</button>
+    <button onclick="sendLocationMessage('${convoId}');closeAllDropdowns()">📍 Location</button>
+    <button onclick="pickContactForChat('${convoId}');closeAllDropdowns()">👤 Contact</button>
+  `;
+  toggleDropdown(anchorEl, html);
+}
+async function sendVideoMessage(convoId, file){
+  toast('Uploading video…');
+  try{
+    const videoURL = await uploadRawToCloudinary(file, file.name || `video-${Date.now()}.mp4`);
+    await addDoc(collection(db,'conversations',convoId,'messages'), {
+      senderUid: currentUser.uid, text:'', videoURL, messageType:'video', createdAt: serverTimestamp()
+    });
+    const convoUpdate = { lastMessage: '🎥 Video', lastMessageTime: serverTimestamp(), [`typing.${currentUser.uid}`]: null };
+    activeOtherMemberIds.forEach(uid=>{ convoUpdate[`unreadCounts.${uid}`] = increment(1); });
+    await updateDoc(doc(db,'conversations',convoId), convoUpdate);
+    activeOtherMemberIds.forEach(uid=> createNotification(uid, 'message', { convoId }));
+  }catch(err){ console.error(err); toast('Video failed to send'); }
+}
+window.sendLocationMessage = async function(convoId){
+  if(!navigator.geolocation){ toast('Location is not supported on this device'); return; }
+  toast('Getting your location…');
+  navigator.geolocation.getCurrentPosition(async (pos)=>{
+    try{
+      const { latitude, longitude } = pos.coords;
+      await addDoc(collection(db,'conversations',convoId,'messages'), {
+        senderUid: currentUser.uid, text:'', lat: latitude, lng: longitude, messageType:'location', createdAt: serverTimestamp()
+      });
+      const convoUpdate = { lastMessage: '📍 Location', lastMessageTime: serverTimestamp(), [`typing.${currentUser.uid}`]: null };
+      activeOtherMemberIds.forEach(uid=>{ convoUpdate[`unreadCounts.${uid}`] = increment(1); });
+      await updateDoc(doc(db,'conversations',convoId), convoUpdate);
+      activeOtherMemberIds.forEach(uid=> createNotification(uid, 'message', { convoId }));
+    }catch(err){ console.error(err); toast('Could not send location'); }
+  }, (err)=>{
+    toast('Location permission denied');
+  }, { timeout: 10000 });
+}
+window.pickContactForChat = async function(convoId){
+  if(!('contacts' in navigator && 'ContactsManager' in window)){
+    toast('Contact sharing needs Android Chrome — not supported on this browser');
+    return;
+  }
+  try{
+    const picked = await navigator.contacts.select(['name','tel'], { multiple:false });
+    if(!picked || !picked.length) return;
+    const c = picked[0];
+    const contactName = (c.name && c.name[0]) || 'Contact';
+    const contactPhone = (c.tel && c.tel[0]) || '';
+    await addDoc(collection(db,'conversations',convoId,'messages'), {
+      senderUid: currentUser.uid, text:'', contactName, contactPhone, messageType:'contact', createdAt: serverTimestamp()
+    });
+    const convoUpdate = { lastMessage: `👤 ${contactName}`, lastMessageTime: serverTimestamp(), [`typing.${currentUser.uid}`]: null };
+    activeOtherMemberIds.forEach(uid=>{ convoUpdate[`unreadCounts.${uid}`] = increment(1); });
+    await updateDoc(doc(db,'conversations',convoId), convoUpdate);
+    activeOtherMemberIds.forEach(uid=> createNotification(uid, 'message', { convoId }));
+  }catch(err){
+    if(err && err.name !== 'AbortError'){ console.error(err); toast('Could not share contact'); }
+  }
 }
 
 let lastMessageSentAt = 0;

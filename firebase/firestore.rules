@@ -52,9 +52,9 @@ service cloud.firestore {
 
       allow update: if (
         (isOwner(uid) || isAdmin()) &&
-        (request.resource.data.isAdmin == resource.data.isAdmin || isAdmin()) &&
-        (request.resource.data.isBanned == resource.data.isBanned || isAdmin()) &&
-        (request.resource.data.isVerified == resource.data.isVerified || isAdmin())
+        (request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) || isAdmin()) &&
+        (request.resource.data.get('isBanned', false) == resource.data.get('isBanned', false) || isAdmin()) &&
+        (request.resource.data.get('isVerified', false) == resource.data.get('isVerified', false) || isAdmin())
       ) || (
         // Skill endorsements: any signed-in member can endorse another
         // member's skill — scoped so this can NEVER touch any other field.
@@ -309,7 +309,7 @@ service cloud.firestore {
           && request.resource.data.senderUid == request.auth.uid
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds
           && request.resource.data.createdAt == request.time
-          && request.resource.data.messageType in ['text', 'image', 'audio', 'file']
+          && request.resource.data.messageType in ['text', 'image', 'audio', 'file', 'video', 'location', 'contact']
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 2000
           && (!('replyToId' in request.resource.data) || request.resource.data.replyToId is string)
