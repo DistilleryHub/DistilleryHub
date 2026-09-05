@@ -1,0 +1,258 @@
+/* ========== CHAT UI FULLSCREEN FIX ========== */
+
+/* Chat को पूरी स्क्रीन पर ले जाएं */
+#panel-chat {
+  width: 100vw;
+  height: calc(100vh - 70px);
+  position: fixed;
+  top: 70px;
+  left: 0;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 50;
+}
+
+.chat-wrap {
+  /* पहले: height:calc(100vh - 150px) - छोटा था */
+  /* अब: पूरी स्क्रीन */
+  height: calc(100vh - 70px) !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+/* Sidebar को पूरी height दें */
+.chat-list {
+  max-height: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* Message pane को पूरी जगह दें */
+.chat-pane {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.chat-messages {
+  height: calc(100% - 130px) !important;
+  overflow-y: auto !important;
+}
+
+.chat-input-row {
+  flex-shrink: 0;
+}
+
+/* ========== MODAL FIXES ========== */
+
+/* Modal को सही से काम करने दें */
+.modal-backdrop {
+  z-index: 1000 !important;
+  background: rgba(6, 11, 18, 0.92) !important;
+  opacity: 1 !important;
+}
+
+.modal-backdrop.hidden {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+.modal {
+  max-width: 600px !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  z-index: 1001 !important;
+  pointer-events: auto !important;
+}
+
+.modal-head {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+}
+
+.close-x {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+/* ========== FORM FIELDS IN MODALS ========== */
+
+.modal .form-field {
+  margin-bottom: 16px;
+}
+
+.modal .form-field input,
+.modal .form-field textarea,
+.modal .form-field select {
+  width: 100% !important;
+  pointer-events: auto !important;
+  cursor: text !important;
+}
+
+.modal button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+.modal .btn {
+  pointer-events: auto !important;
+}
+
+/* ========== STATUS MODAL SPECIFIC ========== */
+
+#statusModalBackdrop {
+  display: none !important;
+}
+
+#statusModalBackdrop:not(.hidden) {
+  display: flex !important;
+  opacity: 1 !important;
+}
+
+#statusText,
+#statusImgPreview {
+  width: 100% !important;
+}
+
+/* ========== PREVENT OVERFLOW ========== */
+
+.modal-backdrop.hidden {
+  display: none !important;
+}
+
+.tabpanel {
+  overflow: visible !important;
+}
+
+#panel-chat.hidden {
+  display: none !important;
+}
+
+#panel-chat:not(.hidden) {
+  display: block !important;
+  width: 100vw;
+  margin-left: -20px;
+}
+
+/* ========== IMAGE PREVIEW ========== */
+
+.imgpreview {
+  margin-top: 12px;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.imgpreview img {
+  max-height: 200px;
+  border-radius: 8px;
+  display: block;
+  border: 1px solid var(--border);
+  width: 100%;
+}
+
+.imgpreview button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(11, 20, 32, 0.8);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 16px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.imgpreview button:hover {
+  background: rgba(11, 20, 32, 0.95);
+}
+
+/* ========== TEXTAREA FIXES ========== */
+
+textarea {
+  font-family: inherit !important;
+  resize: vertical !important;
+}
+
+#statusText {
+  min-height: 100px !important;
+  width: 100% !important;
+}
+
+/* ========== MOBILE ADJUSTMENTS ========== */
+
+@media(max-width:760px) {
+  #panel-chat {
+    top: 60px;
+    height: calc(100vh - 60px);
+  }
+
+  .chat-wrap {
+    height: calc(100vh - 60px) !important;
+  }
+
+  .modal {
+    max-width: 95vw !important;
+    margin: 0 !important;
+  }
+  
+  .chat-messages {
+    height: calc(100% - 110px) !important;
+  }
+}
+
+/* ========== Z-INDEX MANAGEMENT ========== */
+
+.topbar {
+  z-index: 40 !important;
+}
+
+.mobilenav {
+  z-index: 40 !important;
+}
+
+.modal-backdrop {
+  z-index: 1000 !important;
+}
+
+.modal {
+  z-index: 1001 !important;
+}
+
+/* ========== SCROLLBAR FIXES ========== */
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+
+/* ========== UTILITY CLASSES ========== */
+
+.hidden {
+  display: none !important;
+}
+
+.pointer-events-none {
+  pointer-events: none !important;
+}
+
+.pointer-events-auto {
+  pointer-events: auto !important;
+}
