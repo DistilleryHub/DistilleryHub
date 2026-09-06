@@ -1,10 +1,9 @@
-import { uploadFile } from './upload.js';
-import { auth, db, startCall } from './firebase-init.js';
+import { auth, db } from './firebase-init.js';
 import { postText, listenFeed } from './feed.js';
 import { postStatus } from './status.js';
 import { sendMessage, listenMessages } from './chat.js';
 import { uploadFile } from './upload.js';
-import { startCall as startCallSignal } from './calling.js';
+import { startCall } from './calling.js';
 
 window.addEventListener('load', () => {
     // ===== Post Button (Text + Image) =====
@@ -68,7 +67,7 @@ window.addEventListener('load', () => {
         btnCall.addEventListener('click', async () => {
             const otherUid = document.getElementById('callTargetUid').value;
             if (otherUid) {
-                const result = await startCallSignal(otherUid, 'audio');
+                const result = await startCall(otherUid, 'audio');
                 if (result) alert('Call started...');
             }
         });
