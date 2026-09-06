@@ -1,12 +1,10 @@
 import { auth, db } from './firebase-init.js';
 import { postText, listenFeed } from './feed.js';
 import { postStatus } from './status.js';
-import { sendMessage, listenMessages } from './chat.js';
 import { uploadFile } from './upload.js';
 import { startCall } from './calling.js';
 
 window.addEventListener('load', () => {
-    // ===== Post Button (Text + Image) =====
     const btnPost = document.getElementById('btnPost');
     if (btnPost) {
         btnPost.addEventListener('click', async () => {
@@ -20,10 +18,7 @@ window.addEventListener('load', () => {
             if (file) {
                 try {
                     imageURL = await uploadFile(file);
-                } catch (err) {
-                    alert('Image upload failed: ' + err.message);
-                    return;
-                }
+                } catch (err) { alert('Image upload failed: ' + err.message); return; }
             }
 
             try {
@@ -31,13 +26,10 @@ window.addEventListener('load', () => {
                 document.getElementById('postText').value = '';
                 if (imgInput) imgInput.value = '';
                 alert('Post ho gaya!');
-            } catch (err) {
-                alert('Post error: ' + err.message);
-            }
+            } catch (err) { alert('Post error: ' + err.message); }
         });
     }
 
-    // ===== Status Button (Text + Image) =====
     const btnStatus = document.getElementById('btnSubmitStatus');
     if (btnStatus) {
         btnStatus.addEventListener('click', async () => {
@@ -47,34 +39,26 @@ window.addEventListener('load', () => {
 
             let imageURL = '';
             if (file) {
-                try {
-                    imageURL = await uploadFile(file);
-                } catch (err) { alert('Image upload failed'); return; }
+                try { imageURL = await uploadFile(file); }
+                catch (err) { alert('Image upload failed'); return; }
             }
 
             try {
                 await postStatus(text, imageURL);
                 alert('Status post ho gaya!');
-            } catch (err) {
-                alert('Status error: ' + err.message);
-            }
+            } catch (err) { alert('Status error: ' + err.message); }
         });
     }
 
-    // ===== Call Button =====
     const btnCall = document.getElementById('btnStartCall');
     if (btnCall) {
         btnCall.addEventListener('click', async () => {
             const otherUid = document.getElementById('callTargetUid').value;
             if (otherUid) {
-                const result = await startCall(otherUid, 'audio');
-                if (result) alert('Call started...');
+                await startCall(otherUid, 'audio');
             }
         });
     }
 
-    // ===== Feed Listen =====
-    listenFeed((posts) => {
-        console.log('Posts:', posts);
-    });
+    listenFeed((posts) => { console.log('Posts:', posts); });
 });
