@@ -1,0 +1,24 @@
+<!--
+FIX (bug): this snippet existed in the project but was never actually
+used anywhere. It's meant to stop search engines from indexing PRIVATE
+pages (chat, admin, profile-edit, etc.), per SEO-README.md point #3.
+
+Why it was dead: this app only has three server-rendered (SSR) routes —
+/jobs/:id, /articles/:id, and /sitemap.xml (see the Cloud Functions in
+functions/index.js and the rewrites in firebase.json). Every other URL,
+including chat/admin/profile-edit, falls through to the same public
+index.html shell via the catch-all rewrite, and the actual private
+content only ever renders client-side AFTER Firebase Auth confirms a
+login. So there's no separate HTML response for a crawler to fetch for
+those routes in the first place — Googlebot hitting "/chat" gets the
+same public shell as everyone else, then the JS immediately redirects
+to the login screen. There's currently nothing to inject this
+<meta name="robots"> tag INTO.
+
+Keep this file for later: if you ever add more SSR routes (e.g. a
+server-rendered /admin or /profile/:id page, the way renderJob and
+renderArticle already work for jobs/articles), add this tag inside that
+route's <head> the same way pageShell() does for the public pages in
+functions/index.js.
+-->
+<meta name="robots" content="noindex,nofollow,noarchive">
