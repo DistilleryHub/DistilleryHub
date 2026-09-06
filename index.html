@@ -1,17 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<!-- TEMPORARY DEBUG: catches any JS error/rejection that would otherwise
-     fail silently, and shows it as a popup so it can be diagnosed. Remove
-     once the root "nothing works" bug is found and fixed. -->
-<script>
-window.addEventListener('error', function(e){
-  alert('JS ERROR: ' + e.message + ' | file: ' + e.filename + ' | line: ' + e.lineno);
-});
-window.addEventListener('unhandledrejection', function(e){
-  alert('PROMISE ERROR: ' + (e.reason && e.reason.message ? e.reason.message : JSON.stringify(e.reason)));
-});
-</script>
+<script src="config.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0b1420">
