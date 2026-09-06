@@ -16,9 +16,8 @@ window.addEventListener('load', () => {
 
             let imageURL = '';
             if (file) {
-                try {
-                    imageURL = await uploadFile(file);
-                } catch (err) { alert('Image upload failed: ' + err.message); return; }
+                try { imageURL = await uploadFile(file); }
+                catch (err) { alert('Image upload failed: ' + err.message); return; }
             }
 
             try {
@@ -55,7 +54,8 @@ window.addEventListener('load', () => {
         btnCall.addEventListener('click', async () => {
             const otherUid = document.getElementById('callTargetUid').value;
             if (otherUid) {
-                await startCall(otherUid, 'audio');
+                const result = await startCall(otherUid, 'audio');
+                if (result) alert('Call started...');
             }
         });
     }
