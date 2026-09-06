@@ -1,6 +1,6 @@
 // js/upload.js - Cloudinary का उपयोग (Firebase Storage Spark plan पर blocked है)
 export async function uploadFile(file) {
-    const cloudName = "y8iguofl"; // आपका Cloudinary नाम (सही किया गया है)
+    const cloudName = "y8iguofl"; // आपका Cloudinary नाम
     const uploadPreset = "tdm_upload";
 
     const formData = new FormData();
