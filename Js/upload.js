@@ -1,6 +1,5 @@
-// js/upload.js - Cloudinary का उपयोग
 export async function uploadFile(file) {
-    const cloudName = "y8iguofl";
+    const cloudName = "y8iguofl"; // ध्यान दें: 'L' है, '1' नहीं
     const uploadPreset = "tdm_upload";
 
     const formData = new FormData();
@@ -15,7 +14,6 @@ export async function uploadFile(file) {
     if (!res.ok) {
         throw new Error('Cloudinary Upload failed');
     }
-
     const data = await res.json();
     return data.secure_url;
 }
