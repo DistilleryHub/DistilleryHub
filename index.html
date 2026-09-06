@@ -1,6 +1,16 @@
 <!doctype html>
 <html lang="en">
 <head>
+     const RTC_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
+     window.toggleAttachMenu = function(evt, convoId, otherUid) {
+  evt.stopPropagation();
+  document.getElementById('chatImgInput').click();
+};
 <script src="config.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2004,35 +2014,32 @@ window.clearPostImage = function(){
   document.getElementById('postImgInput').value='';
 }
 
-document.getElementById('btnPost').addEventListener('click', async ()=>{
+document.getElementById('btnPost').addEventListener('click', async () => {
   const textEl = document.getElementById('postText');
   const text = textEl.value.trim();
-  // FEATURE: a poll needs at least 2 non-empty options; text is optional
-  // when a poll is attached (the poll options ARE the content).
-  const pollOptionsClean = pendingPollOptions ? pendingPollOptions.map(o=>o.trim()).filter(Boolean) : null;
-  if(pendingPollOptions && pollOptionsClean.length < 2){ toast('Add at least 2 poll options'); return; }
-  if(!text && !pendingPostImage && !pollOptionsClean){ toast('Write something, add a photo, or create a poll first'); return; }
+  if (!text) { toast('कुछ लिखो पहले'); return; }
+
   const btn = document.getElementById('btnPost');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-  try{
-    let imageURL = '';
-    if(pendingPostImage){ imageURL = await uploadToCloudinary(pendingPostImage); }
-    const payload = {
+
+  try {
+    await addDoc(collection(db, 'posts'), {
       authorUid: currentUser.uid,
       authorName: currentProfile.name || 'Member',
       authorHeadline: currentProfile.headline || '',
       authorPhoto: currentProfile.photoURL || '',
-      text, imageURL,
+      text: text,
+      imageURL: '',
       likes: [],
       createdAt: serverTimestamp()
-    };
-    if(pollOptionsClean){ payload.pollOptions = pollOptionsClean.map(t=>({ text:t, votes:[] })); }
-    await addDoc(collection(db,'posts'), payload);
-    textEl.value=''; clearPostImage();
-    pendingPollOptions = null; renderPollBuilder();
-    toast('Posted to the network');
-  }catch(err){ console.error(err); toast('Could not post — try again'); }
-  btn.disabled=false; btn.textContent='Post';
+    });
+    textEl.value = '';
+    toast('Post ho gaya!');
+  } catch (err) {
+    console.error('Post error:', err);
+    toast('Post fail: ' + (err.message || 'unknown'));
+  }
+  btn.disabled = false; btn.textContent = 'Post';
 });
 
 function startFeed(){
