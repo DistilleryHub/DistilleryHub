@@ -3,41 +3,78 @@ import { postText, listenFeed } from './feed.js';
 import { postStatus } from './status.js';
 import { sendMessage, listenMessages } from './chat.js';
 import { uploadFile } from './upload.js';
+import { startCall as startCallSignal } from './calling.js';
 
 window.addEventListener('load', () => {
-    // ===== Post Button =====
-    if (document.getElementById('btnPost')) {
-        document.getElementById('btnPost').addEventListener('click', async () => {
+    // ===== Post Button (Text + Image) =====
+    const btnPost = document.getElementById('btnPost');
+    if (btnPost) {
+        btnPost.addEventListener('click', async () => {
             const text = document.getElementById('postText').value.trim();
-            if (text) { await postText(text); document.getElementById('postText').value = ''; }
+            const imgInput = document.getElementById('postImgInput');
+            const file = imgInput && imgInput.files[0];
+
+            if (!text && !file) { alert('कुछ लिखो या फोटो चुनो'); return; }
+
+            let imageURL = '';
+            if (file) {
+                try {
+                    imageURL = await uploadFile(file);
+                } catch (err) {
+                    alert('Image upload failed: ' + err.message);
+                    return;
+                }
+            }
+
+            try {
+                await postText(text, imageURL);
+                document.getElementById('postText').value = '';
+                if (imgInput) imgInput.value = '';
+                alert('Post ho gaya!');
+            } catch (err) {
+                alert('Post error: ' + err.message);
+            }
         });
     }
 
-    // ===== Status Button =====
-    if (document.getElementById('btnSubmitStatus')) {
-        document.getElementById('btnSubmitStatus').addEventListener('click', async () => {
+    // ===== Status Button (Text + Image) =====
+    const btnStatus = document.getElementById('btnSubmitStatus');
+    if (btnStatus) {
+        btnStatus.addEventListener('click', async () => {
             const text = document.getElementById('statusText').value.trim();
-            if (text) { await postStatus(text); }
+            const imgInput = document.getElementById('statusImgInput');
+            const file = imgInput && imgInput.files[0];
+
+            let imageURL = '';
+            if (file) {
+                try {
+                    imageURL = await uploadFile(file);
+                } catch (err) { alert('Image upload failed'); return; }
+            }
+
+            try {
+                await postStatus(text, imageURL);
+                alert('Status post ho gaya!');
+            } catch (err) {
+                alert('Status error: ' + err.message);
+            }
         });
     }
 
     // ===== Call Button =====
-    if (document.getElementById('btnStartCall')) {
-        document.getElementById('btnStartCall').addEventListener('click', () => {
+    const btnCall = document.getElementById('btnStartCall');
+    if (btnCall) {
+        btnCall.addEventListener('click', async () => {
             const otherUid = document.getElementById('callTargetUid').value;
-            if (otherUid) startCall(otherUid, 'audio');
+            if (otherUid) {
+                const result = await startCallSignal(otherUid, 'audio');
+                if (result) alert('Call started...');
+            }
         });
     }
 
-    // ===== Test Chat (अभी टेस्ट के लिए) =====
-    // जब चैट खुले, तो मैसेज लोड करें (convoId की जगह असली ID डालें)
-    listenMessages('test123', (msgs) => {
-        console.log('Messages loaded:', msgs);
-    });
-
-    // ===== Listen to Feed (पोस्ट देखना) =====
+    // ===== Feed Listen =====
     listenFeed((posts) => {
-        console.log('Posts loaded:', posts);
-        // यहाँ आप अपना पोस्ट render करने का कोड डाल सकते हैं
+        console.log('Posts:', posts);
     });
 });
