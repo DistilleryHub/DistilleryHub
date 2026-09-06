@@ -1,3 +1,4 @@
+import { uploadFile } from './upload.js';
 import { auth, db, startCall } from './firebase-init.js';
 import { postText, listenFeed } from './feed.js';
 import { postStatus } from './status.js';
