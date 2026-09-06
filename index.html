@@ -1,16 +1,18 @@
 <!doctype html>
 <html lang="en">
 <head>
-     const RTC_CONFIG = {
+<script>
+const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
   ]
 };
-     window.toggleAttachMenu = function(evt, convoId, otherUid) {
+window.toggleAttachMenu = function(evt, convoId, otherUid) {
   evt.stopPropagation();
   document.getElementById('chatImgInput').click();
 };
+</script>
 <script src="config.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
