@@ -1,0 +1,52 @@
+/* styles.css - LinkedIn/WhatsApp style professional look */
+body { font-family: Arial, sans-serif; background: #f4f2ee; margin: 0; padding: 0; }
+.topbar { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.brand { font-size: 22px; font-weight: bold; color: #0a66c2; }
+.feed-container { max-width: 600px; margin: 20px auto; padding: 0 10px; }
+.post-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 15px; margin-bottom: 15px; }
+.post-header { display: flex; gap: 10px; margin-bottom: 10px; }
+.post-avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; }
+.post-body { font-size: 15px; line-height: 1.5; }
+.post-image { width: 100%; border-radius: 8px; margin-top: 10px; }
+.post-actions { display: flex; gap: 10px; margin-top: 10px; }
+.post-actions button { background: none; border: none; color: #666; cursor: pointer; font-weight: bold; }
+.chat-interface { display: flex; height: calc(100vh - 60px); }
+/* WhatsApp style chat bubbles */
+.chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #e5ddd5; }
+.msg-bubble { background: #fff; padding: 8px 12px; border-radius: 10px; margin-bottom: 10px; display: inline-block; max-width: 70%; }
+.msg-row.mine { text-align: right; }
+.msg-row.mine .msg-bubble { background: #dcf8c6; }
+.input-area { display: flex; padding: 10px; background: #f0f0f0; }
+.input-area input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ccc; }
+.input-area button { background: #0a66c2; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; margin-left: 10px; cursor: pointer; }
+/* ===== छोटा फुटर (सिर्फ आइकॉन) ===== */
+.tiny-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
+    padding: 8px 15px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    z-index: 999;
+    font-size: 12px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
+.tiny-footer a {
+    color: #666;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.tiny-footer a:hover {
+    color: #0a66c2;
+}
+.tiny-footer .icon {
+    width: 20px;
+    height: 20px;
+    font-size: 18px;
+}
