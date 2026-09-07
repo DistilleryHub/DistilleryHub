@@ -1,22 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="stylesheet" href="styles.css">
-    <!-- छोटा फुटर (सिर्फ आइकॉन) -->
-<div class="tiny-footer">
-    <a href="https://www.facebook.com/profile.php?id=61593394606710" target="_blank" rel="noopener noreferrer">
-        <span class="icon">📘</span> Facebook
-    </a>
-    <a href="https://www.youtube.com/@DistilleryHub" target="_blank" rel="noopener noreferrer">
-        <span class="icon">▶️</span> YouTube
-    </a>
-    <a href="https://www.instagram.com/distilleryhubofficial/" target="_blank" rel="noopener noreferrer">
-        <span class="icon">📸</span> Instagram
-    </a>
-    <a href="mailto:thedistillerymaster@gmail.com">
-        <span class="icon">✉️</span> Email
-    </a>
-</div>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DistilleryHub</title>
@@ -28,6 +12,7 @@
     <!-- AUTH SCREEN -->
     <div id="authScreen" class="auth-screen">
         <div class="auth-card">
+            <div class="auth-logo">DH</div>
             <h2>DistilleryHub</h2>
             <p>Professional Network for Distillery & Ethanol Experts</p>
             <input type="email" id="signinEmail" placeholder="Email">
@@ -41,57 +26,73 @@
     <div id="app" class="app-shell" style="display:none;">
         <!-- Topbar -->
         <div class="topbar">
-            <div class="brand">DistilleryHub</div>
+            <div class="brand">
+                <div class="brand-icon">DH</div>
+                <div class="brand-name">DistilleryHub</div>
+            </div>
             <div class="top-actions">
                 <button onclick="switchTab('feed')">Feed</button>
                 <button onclick="switchTab('network')">Network</button>
                 <button onclick="switchTab('jobs')">Jobs</button>
-                <button onclick="switchTab('articles')">Articles</button>
                 <button onclick="switchTab('chat')">Chat</button>
                 <button onclick="handleSignOut()">Logout</button>
             </div>
         </div>
 
-        <!-- Main Content -->
-        <div class="main-container">
-            <!-- Feed Panel -->
-            <div id="panel-feed" class="panel active">
-                <div class="composer">
-                    <textarea id="postText" placeholder="Share an update..."></textarea>
-                    <div class="composer-actions">
-                        <button onclick="document.getElementById('postImgInput').click()">📷 Photo</button>
-                        <input type="file" id="postImgInput" accept="image/*" style="display:none;">
-                        <button onclick="submitPost()">Post</button>
-                    </div>
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="side-card">
+                    <div class="side-avatar">U</div>
+                    <div class="side-name" id="sideName">User</div>
+                    <div class="side-headline" id="sideHeadline">Distiller</div>
+                    <button class="btn btn-primary btn-block" onclick="openProfile()">View Profile</button>
                 </div>
-                <div id="feedList" class="feed-list"></div>
+                <div class="side-card">
+                    <h4>Quick Links</h4>
+                    <button class="side-link" onclick="switchTab('jobs')">Browse Jobs</button>
+                    <button class="side-link" onclick="switchTab('articles')">Articles</button>
+                    <button class="side-link" onclick="switchTab('network')">Network</button>
+                </div>
             </div>
 
-            <!-- Network Panel -->
-            <div id="panel-network" class="panel" style="display:none;">
-                <div id="networkList" class="people-list"></div>
-            </div>
+            <!-- Main Content -->
+            <div class="content">
+                <!-- Feed Panel -->
+                <div id="panel-feed" class="panel active">
+                    <div class="composer">
+                        <textarea id="postText" placeholder="Share an update, a batch note, a question for the network..."></textarea>
+                        <div class="composer-actions">
+                            <button onclick="document.getElementById('postImgInput').click()">📷 Photo</button>
+                            <input type="file" id="postImgInput" accept="image/*" style="display:none;">
+                            <button class="btn-primary" onclick="submitPost()">Post</button>
+                        </div>
+                    </div>
+                    <div id="feedList" class="feed-list"></div>
+                </div>
 
-            <!-- Jobs Panel -->
-            <div id="panel-jobs" class="panel" style="display:none;">
-                <div id="jobsList" class="grid-list"></div>
-            </div>
+                <!-- Network Panel -->
+                <div id="panel-network" class="panel" style="display:none;">
+                    <div id="networkList" class="people-list"></div>
+                </div>
 
-            <!-- Articles Panel -->
-            <div id="panel-articles" class="panel" style="display:none;">
-                <div id="articlesList" class="grid-list"></div>
-            </div>
+                <!-- Jobs Panel -->
+                <div id="panel-jobs" class="panel" style="display:none;">
+                    <div id="jobsList" class="grid-list"></div>
+                </div>
 
-            <!-- Chat Panel -->
-            <div id="panel-chat" class="panel" style="display:none;">
-                <div class="chat-interface">
-                    <div class="chat-list" id="convoList"></div>
-                    <div class="chat-window" id="chatWindow">
-                        <div class="chat-header" id="chatHeader">Select a conversation</div>
-                        <div class="chat-messages" id="chatMessages"></div>
-                        <div class="input-area">
-                            <input type="text" id="chatInput" placeholder="Write a message...">
-                            <button onclick="sendChatMessage()">➤</button>
+                <!-- Chat Panel -->
+                <div id="panel-chat" class="panel" style="display:none;">
+                    <div class="chat-interface">
+                        <div class="chat-list" id="convoList"></div>
+                        <div class="chat-window" id="chatWindow">
+                            <div class="chat-header" id="chatHeader">Select a conversation</div>
+                            <div class="chat-messages" id="chatMessages"></div>
+                            <div class="input-area">
+                                <input type="text" id="chatInput" placeholder="Write a message...">
+                                <button onclick="sendChatMessage()">➤</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -103,9 +104,9 @@
     <div id="toast" class="toast"></div>
 
     <script type="module">
-        import { auth, db } from './js/firebase-init.js';
+        import { auth } from './js/firebase-init.js';
 
-        // ---------- Auth Functions ----------
+        // Auth Functions
         window.handleSignIn = async function() {
             const email = document.getElementById('signinEmail').value;
             const password = document.getElementById('signinPassword').value;
@@ -127,9 +128,9 @@
                 await signInWithPopup(auth, provider);
                 document.getElementById('authScreen').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
-                alert('Google Login Successful');
+                alert('Login Successful');
             } catch (e) {
-                alert('Google Login Failed: ' + e.message);
+                alert('Login Failed: ' + e.message);
             }
         };
 
@@ -140,20 +141,19 @@
             document.getElementById('authScreen').style.display = 'block';
         };
 
-        // ---------- Tab Switching ----------
+        // Tab Switching
         window.switchTab = function(tab) {
             document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
             document.getElementById('panel-' + tab).style.display = 'block';
         };
 
-        // ---------- Post & Chat Functions ----------
+        // Post & Chat
         window.submitPost = async function() {
             const text = document.getElementById('postText').value.trim();
             if (!text) return alert('कुछ लिखो');
             const { postText: postFn } = await import('./js/feed.js');
             await postFn(text, '');
             document.getElementById('postText').value = '';
-            alert('Post हो गया!');
         };
 
         window.sendChatMessage = async function() {
@@ -164,7 +164,6 @@
             document.getElementById('chatInput').value = '';
         };
 
-        // Global State
         window.currentConvoId = null;
     </script>
 </body>
