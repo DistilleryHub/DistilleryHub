@@ -9,8 +9,6 @@
     <script type="module" src="js/main.js"></script>
 </head>
 <body>
-
-    <!-- AUTH SCREEN -->
     <div id="authScreen" class="auth-screen">
         <div class="auth-card">
             <div class="auth-logo">DH</div>
@@ -23,34 +21,22 @@
         </div>
     </div>
 
-    <!-- MAIN APP -->
     <div id="app" class="app-shell" style="display:none;">
         <div class="topbar">
             <div class="brand"><div class="brand-icon">DH</div><div class="brand-name">DistilleryHub</div></div>
             <div class="top-actions">
                 <button onclick="switchTab('feed')">Feed</button>
-                <button onclick="switchTab('network')">Network</button>
+                <button onclick="switchTab('chat')">Chat</button>
                 <button onclick="switchTab('jobs')">Jobs</button>
                 <button onclick="switchTab('articles')">Articles</button>
                 <button onclick="switchTab('market')">Market</button>
-                <button onclick="switchTab('videos')">Videos</button>
-                <button onclick="switchTab('status')">Status</button>
-                <button onclick="switchTab('chat')">Chat</button>
                 <button onclick="handleSignOut()">Logout</button>
             </div>
         </div>
 
         <div class="main-layout">
-            <div class="sidebar">
-                <div class="side-card">
-                    <div class="side-avatar">U</div>
-                    <div class="side-name" id="sideName">User</div>
-                    <div class="side-headline" id="sideHeadline">Distiller</div>
-                    <button class="btn btn-primary btn-block" onclick="openProfile()">Edit Profile</button>
-                </div>
-            </div>
-
             <div class="content">
+                <!-- FEED -->
                 <div id="panel-feed" class="panel active">
                     <div class="composer">
                         <textarea id="postText" placeholder="Share an update..."></textarea>
@@ -63,43 +49,15 @@
                     <div id="feedList" class="feed-list"></div>
                 </div>
 
-                <div id="panel-jobs" class="panel" style="display:none;">
-                    <button class="btn-primary" onclick="postJob()">+ Post a Job</button>
-                    <div id="jobsList" class="feed-list" style="margin-top:10px;"></div>
-                </div>
-
-                <div id="panel-articles" class="panel" style="display:none;">
-                    <button class="btn-primary" onclick="postArticle()">+ Write Article</button>
-                    <div id="articlesList" class="feed-list" style="margin-top:10px;"></div>
-                </div>
-
-                <div id="panel-market" class="panel" style="display:none;">
-                    <button class="btn-primary" onclick="postMarket()">+ List Item</button>
-                    <div id="marketList" class="feed-list" style="margin-top:10px;"></div>
-                </div>
-
-                <div id="panel-videos" class="panel" style="display:none;">
-                    <button class="btn-primary" onclick="postVideo()">+ Add Video</button>
-                    <div id="videosList" class="feed-list" style="margin-top:10px;"></div>
-                </div>
-
-                <div id="panel-status" class="panel" style="display:none;">
-                    <div class="composer">
-                        <textarea id="statusText" placeholder="What's happening?"></textarea>
-                        <div class="composer-actions"><button class="btn-primary" onclick="submitStatus()">Post Status</button></div>
-                    </div>
-                </div>
-
+                <!-- CHAT -->
                 <div id="panel-chat" class="panel" style="display:none;">
                     <div class="chat-interface">
-                        <div class="chat-list" id="convoList"></div>
                         <div class="chat-window">
-                            <div class="chat-header" id="chatHeader">Select a conversation</div>
                             <div class="chat-messages" id="chatMessages"></div>
                             <div class="input-area">
-                                <button id="btnChatAttach" style="background:none; border:none; font-size:20px; cursor:pointer;">📎</button>
-                                <input type="file" id="chatImgInput" accept="image/*" style="display:none;">
-                                <input type="text" id="chatInput" placeholder="Write a message...">
+                                <button id="btnChatAttach">📎</button>
+                                <input type="file" id="chatImgInput" style="display:none;">
+                                <input type="text" id="chatInput" placeholder="Write...">
                                 <button onclick="sendChatMessage()">➤</button>
                             </div>
                         </div>
@@ -108,8 +66,6 @@
             </div>
         </div>
     </div>
-
-    <div id="toast" class="toast"></div>
 
     <script type="module">
         import { auth } from './js/firebase-init.js';
@@ -123,7 +79,6 @@
                 await signInWithEmailAndPassword(auth, email, password);
                 document.getElementById('authScreen').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
-                alert('Login Successful');
             } catch (e) { alert('Login Failed: ' + e.message); }
         };
 
@@ -133,7 +88,6 @@
                 await signInWithPopup(auth, new GoogleAuthProvider());
                 document.getElementById('authScreen').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
-                alert('Login Successful');
             } catch (e) { alert('Login Failed: ' + e.message); }
         };
 
@@ -144,75 +98,26 @@
             document.getElementById('authScreen').style.display = 'block';
         };
 
+        // POST (Error दिखाएगा)
+        window.submitPost = async function() {
+            const text = document.getElementById('postText').value.trim();
+            if (!text) return alert('कुछ लिखो');
+            
+            const { postText } = await import('./js/feed.js');
+            try {
+                await postText(text, '');
+                document.getElementById('postText').value = '';
+                alert('Post ho gaya!');
+            } catch (e) {
+                alert('Post error: ' + e.message); // असली कारण दिखेगा
+            }
+        };
+
         // TABS
         window.switchTab = function(tab) {
             document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
             document.getElementById('panel-' + tab).style.display = 'block';
         };
-
-        // POST
-        window.submitPost = async function() {
-            const text = document.getElementById('postText').value.trim();
-            const imgInput = document.getElementById('postImgInput');
-            const file = imgInput && imgInput.files[0];
-            if (!text && !file) return alert('कुछ लिखो या फोटो चुनो');
-            let imageURL = '';
-            if (file) {
-                const { uploadFile } = await import('./js/upload.js');
-                try { imageURL = await uploadFile(file); } catch (e) { return alert('Upload failed: ' + e.message); }
-            }
-            const { postText } = await import('./js/feed.js');
-            await postText(text, imageURL);
-            document.getElementById('postText').value = '';
-            if (imgInput) imgInput.value = '';
-        };
-
-        // STATUS
-        window.submitStatus = async function() {
-            const text = document.getElementById('statusText').value.trim();
-            if (!text) return alert('कुछ लिखो');
-            const { postStatus } = await import('./js/status.js');
-            await postStatus(text);
-            document.getElementById('statusText').value = '';
-            alert('Status posted!');
-        };
-
-        // CHAT SEND (TEXT)
-        window.sendChatMessage = async function() {
-            const input = document.getElementById('chatInput');
-            const text = input.value.trim();
-            if (!text) return;
-            if (!window.currentConvoId) return alert('पहले चैट सेलेक्ट करो');
-            const { sendMessage } = await import('./js/chat.js');
-            await sendMessage(window.currentConvoId, text, '');
-            input.value = '';
-        };
-
-        // + BATTON (FIXED HERE)
-        const btnAttach = document.getElementById('btnChatAttach');
-        if (btnAttach) {
-            btnAttach.addEventListener('click', () => {
-                document.getElementById('chatImgInput').click();
-            });
-        }
-
-        // PHOTO SELECTION
-        document.getElementById('chatImgInput').addEventListener('change', async function() {
-            const file = this.files[0];
-            if (!file) return;
-            if (!window.currentConvoId) { alert('पहले चैट सेलेक्ट करो'); return; }
-            const { uploadFile } = await import('./js/upload.js');
-            try {
-                const imageURL = await uploadFile(file);
-                const { sendMessage } = await import('./js/chat.js');
-                await sendMessage(window.currentConvoId, '', imageURL);
-                this.value = '';
-            } catch (e) {
-                alert('फोटो अपलोड फेल: ' + e.message);
-            }
-        });
-
-        window.currentConvoId = null;
     </script>
 </body>
 </html>
