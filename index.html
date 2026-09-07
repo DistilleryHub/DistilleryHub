@@ -4,113 +4,101 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0">
 <meta name="theme-color" content="#0b1420">
-<title>DistilleryHub | Pro Network</title>
-
-<!-- External Resources -->
+<title>DistilleryHub | Professional Network</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
-/* CSS: PROFESSIONALLY REFINED */
+/* CORE CSS - DISTILLERYHUB THEME */
 :root {
-  --bg: #0b1420; --surface: #101c29; --card: #152332; --card-2: #182838;
-  --border: #22334a; --text: #eef3f6; --text-dim: #8ca0b3; --copper: #d98b3f;
-  --copper-bright: #f0a559; --danger: #e0605a; --radius: 12px;
+  --bg:#0b1420; --surface:#101c29; --card:#152332; --card-2:#182838;
+  --border:#22334a; --text:#eef3f6; --text-dim:#8ca0b3;
+  --copper:#d98b3f; --copper-bright:#f0a559; --radius:12px;
 }
+* { box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Inter', sans-serif; overflow-x:hidden; }
+.hidden { display:none !important; }
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { 
-  margin: 0; padding: 0; background: var(--bg); color: var(--text); 
-  font-family: 'Inter', sans-serif; height: 100%; width: 100%;
-  overscroll-behavior-y: contain; /* PWA Refresh Fix */
-}
+/* LOADING SCREEN */
+#authLoading { height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+.spinner { width:25px; height:25px; border:3px solid rgba(255,255,255,0.1); border-top-color:var(--copper-bright); border-radius:50%; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
 
-#app { display: none; min-height: 100vh; }
-#app.show { display: block; }
+/* APP LAYOUT */
+#app { display:none; min-height:100vh; }
+#app.show { display:block; }
+.topbar { position:sticky; top:0; z-index:50; background:rgba(11,20,32,0.95); backdrop-filter:blur(10px); border-bottom:1px solid var(--border); padding:10px 20px; display:flex; align-items:center; gap:20px; }
+.main { max-width:1180px; margin:0 auto; padding:20px 15px; }
 
-/* NAVIGATION */
-.topbar { position: sticky; top: 0; z-index: 50; background: rgba(11,20,32,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
-.topbar-inner { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; padding: 12px 20px; gap: 20px; }
-.navtabs { display: flex; gap: 4px; overflow-x: auto; flex: 1; scrollbar-width: none; }
-.navtab { padding: 8px 12px; color: var(--text-dim); white-space: nowrap; font-size: 13px; font-weight: 600; background:none; border:none; }
-.navtab.active { color: var(--copper-bright); background: var(--card-2); border-radius: 8px; }
+/* CARD & FEED */
+.card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:15px; }
+.post-name { font-weight:700; color:var(--copper-bright); }
+.post-text { margin-top:8px; line-height:1.5; }
+.post-img img { width:100%; border-radius:10px; margin-top:10px; }
 
-/* CHAT SYSTEM & KEYBOARD FIX */
-@media (max-width: 760px) {
-  body.chat-fullscreen { overflow: hidden; position: fixed; width: 100%; height: 100dvh; }
-  body.chat-fullscreen .topbar, body.chat-fullscreen .mobilenav, body.chat-fullscreen .appfooter { display: none !important; }
-  .chat-wrap { position: fixed; inset: 0; height: 100dvh !important; display: flex !important; flex-direction: column; border:none; border-radius:0; }
-  .chat-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .chat-messages { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  .chat-input-row { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
-}
+/* NAVTABS */
+.navtabs { display:flex; gap:10px; flex:1; overflow-x:auto; }
+.navtab { background:none; border:none; color:var(--text-dim); padding:10px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.navtab.active { color:var(--copper-bright); background:var(--card-2); border-radius:8px; }
 
-/* CARDS & POSTS */
-.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 15px; }
-.post-img img { width: 100%; border-radius: 10px; margin-top: 10px; object-fit: cover; }
-.spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--copper-bright); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* BUTTONS */
-.btn { cursor: pointer; border-radius: 8px; font-weight: 600; padding: 10px 16px; border:none; transition: 0.2s; }
-.btn-primary { background: linear-gradient(155deg, var(--copper-bright), var(--copper-dark)); color: #1a1006; }
-.btn-primary:active { transform: scale(0.95); }
-
-/* (विशाल स्टाइल के बाकी हिस्से यहीं रहेंगे...) */
+/* TOAST */
+#toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--card-2); border:1px solid var(--border); color:#fff; padding:10px 20px; border-radius:25px; opacity:0; transition:0.3s; z-index:1000; }
+#toast.show { opacity:1; }
 </style>
 </head>
 <body>
 
-<div id="authLoading" style="height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center;">
-    <span class="spinner"></span>
-    <p style="margin-top:10px; color:var(--text-dim);">Connecting to DistilleryHub...</p>
-</div>
+  <!-- LOADING OVERLAY -->
+  <div id="authLoading">
+    <div class="spinner"></div>
+    <p style="margin-top:15px; opacity:0.6;">Connecting...</p>
+  </div>
 
-<!-- ================= AUTH SCREEN ================= -->
-<div id="authScreen" class="hidden">
-  <!-- (आपका original Signin/Signup HTML Structure यहाँ रहेगा) -->
-</div>
-
-<!-- ================= APP SHELL ================= -->
-<div id="app">
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="brand"><b>DH</b> DistilleryHub</div>
-      <div class="navtabs" id="navtabs">
-        <button class="navtab" data-tab="feed" onclick="switchTab('feed')">Feed</button>
-        <button class="navtab" data-tab="chat" onclick="switchTab('chat')">Messages</button>
-        <button class="navtab" data-tab="network" onclick="switchTab('network')">Network</button>
-        <!-- अन्य टैब बटन्स -->
+  <!-- AUTH SCREEN -->
+  <div id="authScreen" class="hidden" style="display:flex; justify-content:center; align-items:center; min-height:100vh;">
+      <div class="card" style="width:340px; text-align:center;">
+          <h2 style="color:var(--copper-bright)">DH Login</h2>
+          <p style="font-size:12px; opacity:0.7">DistilleryHub Professional Access</p>
+          <button id="btnGoogle" style="width:100%; padding:12px; border-radius:8px; cursor:pointer; background:#fff; color:#000; font-weight:700;">Google Se Continue Karein</button>
       </div>
-      <img id="topAvatar" class="avatar" style="width:36px; height:36px; border-radius:50%;" onclick="openProfile(currentUser.uid)">
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="app">
+    <div class="topbar">
+      <div style="font-weight:900; font-size:22px; color:var(--copper-bright)">DH</div>
+      <div class="navtabs">
+         <button class="navtab active" data-tab="feed" onclick="switchTab('feed')">Feed</button>
+         <button class="navtab" data-tab="chat" onclick="switchTab('chat')">Messages</button>
+         <button class="navtab" data-tab="network" onclick="switchTab('network')">Network</button>
+      </div>
+      <div id="userPhoto" style="width:36px; height:36px; background:var(--card-2); border-radius:50%; border:1px solid var(--border); cursor:pointer;"></div>
+    </div>
+
+    <div class="main">
+        <div id="panel-feed" class="tabpanel">
+            <div id="feedList"></div>
+        </div>
+        <div id="panel-chat" class="tabpanel hidden">
+            <div class="card"><p>Messages are loading...</p></div>
+        </div>
+        <div id="panel-network" class="tabpanel hidden">
+            <div id="networkList"></div>
+        </div>
     </div>
   </div>
 
-  <div class="main" style="max-width:1180px; margin:0 auto; padding:20px 15px 100px;">
-      <div id="tab-panels">
-          <div id="panel-feed" class="tabpanel">
-              <div id="feedList"></div>
-          </div>
-          <div id="panel-chat" class="tabpanel hidden">
-              <div class="chat-wrap" id="chat-ui"></div>
-          </div>
-          <!-- अन्य पैनल यहाँ -->
-      </div>
-  </div>
-</div>
+  <div id="toast"></div>
 
-<!-- TOAST & MODALS -->
-<div id="toast"></div>
-
-<!-- JS CORE: MODULE TYPE IS KEY -->
 <script type="module">
+// --- STEP 1: ALL IMPORTS AT TOP ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-// --- CONFIG ---
-const firebaseConfig = { 
+// --- STEP 2: CONFIG & INIT ---
+const firebaseConfig = {
   apiKey: "AIzaSyB63lPTtic1RUjfq-KXWrvtisSGIetXL6k",
   authDomain: "distilleryhub-b1d2d.firebaseapp.com",
   projectId: "distilleryhub-b1d2d",
@@ -123,16 +111,13 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- GLOBAL STATE ---
+// GLOBAL STATE
 window.currentUser = null;
 let currentListeners = [];
-let localStream = null;
-let pc = null;
 
-// --- UTILS ---
-function toast(msg) {
+// UTILS
+window.toast = (msg) => {
   const t = document.getElementById('toast');
-  if(!t) return;
   t.textContent = msg; t.className = "show";
   setTimeout(() => t.className = "", 3000);
 }
@@ -140,84 +125,72 @@ function toast(msg) {
 const cleanup = () => {
     currentListeners.forEach(u => u());
     currentListeners = [];
-};
+}
 
-// --- CORE FUNCTIONS ---
+// --- STEP 3: FUNCTION LOGIC ---
 window.switchTab = (tab) => {
     cleanup();
     document.querySelectorAll('.tabpanel').forEach(p => p.classList.add('hidden'));
     document.querySelectorAll('.navtab').forEach(b => b.classList.remove('active'));
     
-    const targetPanel = document.getElementById('panel-' + tab);
-    const targetTab = document.querySelector(`.navtab[data-tab="${tab}"]`);
-    
-    if(targetPanel) targetPanel.classList.remove('hidden');
-    if(targetTab) targetTab.classList.add('active');
+    document.getElementById('panel-' + tab).classList.remove('hidden');
+    document.querySelector(`.navtab[data-tab="${tab}"]`).classList.add('active');
 
-    if(tab === 'feed') startFeed();
-    if(tab === 'chat') startConvos();
-    
-    // Smooth scroll for PWA feel
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (tab === 'feed') startFeed();
 };
 
-// --- REFINED FEED (Memory Optimized) ---
 const startFeed = () => {
-    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(25));
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(30));
     const unsub = onSnapshot(q, (snap) => {
-        const feedList = document.getElementById('feedList');
         let html = '';
-        snap.forEach(d => {
-            const p = d.data();
+        snap.forEach(doc => {
+            const p = doc.data();
             html += `
-                <div class="card">
-                   <div style="font-weight:700;">${p.authorName}</div>
-                   <p>${p.text}</p>
-                   ${p.imageURL ? `<img src="${p.imageURL}" style="width:100%; border-radius:8px;">` : ''}
-                </div>
-            `;
+              <div class="card">
+                <div class="post-name">${p.authorName || 'Professional'}</div>
+                <div class="post-text">${p.text || ''}</div>
+                ${p.imageURL ? `<div class="post-img"><img src="${p.imageURL}"></div>` : ''}
+              </div>`;
         });
-        feedList.innerHTML = html;
-    });
+        document.getElementById('feedList').innerHTML = html || '<div class="card">Abhi koi post nahi hai.</div>';
+    }, (err) => console.log("Feed Error:", err));
     currentListeners.push(unsub);
 };
 
-// --- WEBRTC BUG FREE CLEANUP ---
-window.endCall = async () => {
-    console.log("Releasing hardware...");
-    
-    // Camera light band karne ka sahi tarika (Fixed track stop)
-    if (localStream) {
-        localStream.getTracks().forEach(track => {
-            track.stop(); 
-            track.enabled = false;
-        });
-        localStream = null;
+// LOGIN BUTTON
+document.getElementById('btnGoogle').onclick = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      toast("Login failed! Internet check karein.");
     }
-    
-    if (pc) {
-        pc.close(); pc = null;
-    }
-    
-    document.getElementById('activeCallOverlay').classList.add('hidden');
-    toast("Call disconnected.");
+}
+
+// PROFILE LOGOUT
+document.getElementById('userPhoto').onclick = () => {
+    if(confirm("Sign out karein?")) signOut(auth);
 };
 
-// --- AUTH LOGIC (Safe Sessions) ---
-onAuthStateChanged(auth, (user) => {
+// --- STEP 4: AUTH OBSERVER (MAGIC HUB) ---
+onAuthStateChanged(auth, async (user) => {
     const loadEl = document.getElementById('authLoading');
+    const appEl = document.getElementById('app');
+    const authEl = document.getElementById('authScreen');
+
     if (user) {
         window.currentUser = user;
-        loadEl.style.display = 'none';
-        document.getElementById('app').classList.add('show');
+        loadEl.classList.add('hidden');
+        authEl.classList.add('hidden');
+        appEl.classList.add('show');
+        if(user.photoURL) document.getElementById('userPhoto').style.backgroundImage = `url(${user.photoURL})`;
         switchTab('feed');
     } else {
-        loadEl.style.display = 'none';
-        document.getElementById('authScreen').classList.remove('hidden');
+        loadEl.classList.add('hidden');
+        appEl.classList.remove('show');
+        authEl.classList.remove('hidden');
     }
 });
-
-/* (आपके बाकी 5k लाइनों वाले फंक्शन यहाँ फिक्स के साथ जुड़ते रहेंगे...) */
 
 </script>
 </body>
