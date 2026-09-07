@@ -86,8 +86,10 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
-    <script>
-        // ---------- Auth Functions (Simple) ----------
+    <script type="module">
+        import { auth, db } from './js/firebase-init.js';
+
+        // ---------- Auth Functions ----------
         window.handleSignIn = async function() {
             const email = document.getElementById('signinEmail').value;
             const password = document.getElementById('signinPassword').value;
@@ -128,7 +130,7 @@
             document.getElementById('panel-' + tab).style.display = 'block';
         };
 
-        // ---------- Post & Chat Functions (Calling JS Modules) ----------
+        // ---------- Post & Chat Functions ----------
         window.submitPost = async function() {
             const text = document.getElementById('postText').value.trim();
             if (!text) return alert('कुछ लिखो');
@@ -140,15 +142,14 @@
 
         window.sendChatMessage = async function() {
             const text = document.getElementById('chatInput').value.trim();
-            if (!text || !currentConvoId) return alert('पहले चैट सेलेक्ट करो');
+            if (!text || !window.currentConvoId) return alert('पहले चैट सेलेक्ट करो');
             const { sendMessage } = await import('./js/chat.js');
-            await sendMessage(currentConvoId, text);
+            await sendMessage(window.currentConvoId, text);
             document.getElementById('chatInput').value = '';
         };
-        
+
         // Global State
-        let currentConvoId = null;
-        window.currentConvoId = currentConvoId;
+        window.currentConvoId = null;
     </script>
 </body>
 </html>
