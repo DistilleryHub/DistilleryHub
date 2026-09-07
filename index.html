@@ -25,13 +25,8 @@
 
     <!-- MAIN APP -->
     <div id="app" class="app-shell" style="display:none;">
-        
-        <!-- TOP BAR -->
         <div class="topbar">
-            <div class="brand">
-                <div class="brand-icon">DH</div>
-                <div class="brand-name">DistilleryHub</div>
-            </div>
+            <div class="brand"><div class="brand-icon">DH</div><div class="brand-name">DistilleryHub</div></div>
             <div class="top-actions">
                 <button onclick="switchTab('feed')">Feed</button>
                 <button onclick="switchTab('network')">Network</button>
@@ -45,10 +40,7 @@
             </div>
         </div>
 
-        <!-- MAIN LAYOUT -->
         <div class="main-layout">
-
-            <!-- SIDEBAR -->
             <div class="sidebar">
                 <div class="side-card">
                     <div class="side-avatar">U</div>
@@ -56,21 +48,12 @@
                     <div class="side-headline" id="sideHeadline">Distiller</div>
                     <button class="btn btn-primary btn-block" onclick="openProfile()">Edit Profile</button>
                 </div>
-                <div class="side-card">
-                    <h4>Quick Links</h4>
-                    <button class="side-link" onclick="switchTab('jobs')">Browse Jobs</button>
-                    <button class="side-link" onclick="switchTab('articles')">Articles</button>
-                    <button class="side-link" onclick="switchTab('network')">Network</button>
-                </div>
             </div>
 
-            <!-- CONTENT AREA -->
             <div class="content">
-
-                <!-- FEED PANEL -->
                 <div id="panel-feed" class="panel active">
                     <div class="composer">
-                        <textarea id="postText" placeholder="Share an update, a batch note, a question for the network..."></textarea>
+                        <textarea id="postText" placeholder="Share an update..."></textarea>
                         <div class="composer-actions">
                             <button onclick="document.getElementById('postImgInput').click()">📷 Photo</button>
                             <input type="file" id="postImgInput" accept="image/*" style="display:none;">
@@ -80,46 +63,33 @@
                     <div id="feedList" class="feed-list"></div>
                 </div>
 
-                <!-- NETWORK PANEL -->
-                <div id="panel-network" class="panel" style="display:none;">
-                    <div id="networkList" class="people-list"></div>
-                </div>
-
-                <!-- JOBS PANEL -->
                 <div id="panel-jobs" class="panel" style="display:none;">
                     <button class="btn-primary" onclick="postJob()">+ Post a Job</button>
                     <div id="jobsList" class="feed-list" style="margin-top:10px;"></div>
                 </div>
 
-                <!-- ARTICLES PANEL -->
                 <div id="panel-articles" class="panel" style="display:none;">
                     <button class="btn-primary" onclick="postArticle()">+ Write Article</button>
                     <div id="articlesList" class="feed-list" style="margin-top:10px;"></div>
                 </div>
 
-                <!-- MARKET PANEL -->
                 <div id="panel-market" class="panel" style="display:none;">
                     <button class="btn-primary" onclick="postMarket()">+ List Item</button>
                     <div id="marketList" class="feed-list" style="margin-top:10px;"></div>
                 </div>
 
-                <!-- VIDEOS PANEL -->
                 <div id="panel-videos" class="panel" style="display:none;">
                     <button class="btn-primary" onclick="postVideo()">+ Add Video</button>
                     <div id="videosList" class="feed-list" style="margin-top:10px;"></div>
                 </div>
 
-                <!-- STATUS PANEL -->
                 <div id="panel-status" class="panel" style="display:none;">
                     <div class="composer">
-                        <textarea id="statusText" placeholder="What's happening at your plant?"></textarea>
-                        <div class="composer-actions">
-                            <button class="btn-primary" onclick="submitStatus()">Post Status</button>
-                        </div>
+                        <textarea id="statusText" placeholder="What's happening?"></textarea>
+                        <div class="composer-actions"><button class="btn-primary" onclick="submitStatus()">Post Status</button></div>
                     </div>
                 </div>
 
-                <!-- CHAT PANEL -->
                 <div id="panel-chat" class="panel" style="display:none;">
                     <div class="chat-interface">
                         <div class="chat-list" id="convoList"></div>
@@ -127,7 +97,6 @@
                             <div class="chat-header" id="chatHeader">Select a conversation</div>
                             <div class="chat-messages" id="chatMessages"></div>
                             <div class="input-area">
-                                <!-- नया "+" बटन (फोटो के लिए) -->
                                 <button id="btnChatAttach" style="background:none; border:none; font-size:20px; cursor:pointer;">📎</button>
                                 <input type="file" id="chatImgInput" accept="image/*" style="display:none;">
                                 <input type="text" id="chatInput" placeholder="Write a message...">
@@ -136,7 +105,6 @@
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
@@ -144,10 +112,9 @@
     <div id="toast" class="toast"></div>
 
     <script type="module">
-        // यह script सिर्फ Auth और UI Button functions को load करता है
         import { auth } from './js/firebase-init.js';
 
-        // Auth Functions
+        // AUTH
         window.handleSignIn = async function() {
             const email = document.getElementById('signinEmail').value;
             const password = document.getElementById('signinPassword').value;
@@ -157,22 +124,17 @@
                 document.getElementById('authScreen').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
                 alert('Login Successful');
-            } catch (e) {
-                alert('Login Failed: ' + e.message);
-            }
+            } catch (e) { alert('Login Failed: ' + e.message); }
         };
 
         window.handleGoogleSignIn = async function() {
             try {
                 const { GoogleAuthProvider, signInWithPopup } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
-                const provider = new GoogleAuthProvider();
-                await signInWithPopup(auth, provider);
+                await signInWithPopup(auth, new GoogleAuthProvider());
                 document.getElementById('authScreen').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
                 alert('Login Successful');
-            } catch (e) {
-                alert('Login Failed: ' + e.message);
-            }
+            } catch (e) { alert('Login Failed: ' + e.message); }
         };
 
         window.handleSignOut = async function() {
@@ -182,33 +144,30 @@
             document.getElementById('authScreen').style.display = 'block';
         };
 
-        // Tab Switching (main.js में load होंगे)
+        // TABS
         window.switchTab = function(tab) {
             document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
             document.getElementById('panel-' + tab).style.display = 'block';
         };
 
-        // Post Function (Feed)
+        // POST
         window.submitPost = async function() {
             const text = document.getElementById('postText').value.trim();
             const imgInput = document.getElementById('postImgInput');
             const file = imgInput && imgInput.files[0];
             if (!text && !file) return alert('कुछ लिखो या फोटो चुनो');
-            
             let imageURL = '';
             if (file) {
                 const { uploadFile } = await import('./js/upload.js');
-                try { imageURL = await uploadFile(file); } 
-                catch (e) { return alert('Upload failed: ' + e.message); }
+                try { imageURL = await uploadFile(file); } catch (e) { return alert('Upload failed: ' + e.message); }
             }
-
             const { postText } = await import('./js/feed.js');
             await postText(text, imageURL);
             document.getElementById('postText').value = '';
             if (imgInput) imgInput.value = '';
         };
 
-        // Status Function
+        // STATUS
         window.submitStatus = async function() {
             const text = document.getElementById('statusText').value.trim();
             if (!text) return alert('कुछ लिखो');
@@ -218,30 +177,41 @@
             alert('Status posted!');
         };
 
-        // Chat Send Function (Text + Photo)
+        // CHAT SEND (TEXT)
         window.sendChatMessage = async function() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
-            const fileInput = document.getElementById('chatImgInput');
-            const file = fileInput && fileInput.files[0];
-
-            if (!text && !file) return;
+            if (!text) return;
             if (!window.currentConvoId) return alert('पहले चैट सेलेक्ट करो');
-
-            let imageURL = '';
-            if (file) {
-                const { uploadFile } = await import('./js/upload.js');
-                try { imageURL = await uploadFile(file); } 
-                catch (e) { return alert('Image upload failed: ' + e.message); }
-            }
-
             const { sendMessage } = await import('./js/chat.js');
-            await sendMessage(window.currentConvoId, text, imageURL);
+            await sendMessage(window.currentConvoId, text, '');
             input.value = '';
-            if (fileInput) fileInput.value = '';
         };
 
-        // Global State
+        // + BATTON (FIXED HERE)
+        const btnAttach = document.getElementById('btnChatAttach');
+        if (btnAttach) {
+            btnAttach.addEventListener('click', () => {
+                document.getElementById('chatImgInput').click();
+            });
+        }
+
+        // PHOTO SELECTION
+        document.getElementById('chatImgInput').addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+            if (!window.currentConvoId) { alert('पहले चैट सेलेक्ट करो'); return; }
+            const { uploadFile } = await import('./js/upload.js');
+            try {
+                const imageURL = await uploadFile(file);
+                const { sendMessage } = await import('./js/chat.js');
+                await sendMessage(window.currentConvoId, '', imageURL);
+                this.value = '';
+            } catch (e) {
+                alert('फोटो अपलोड फेल: ' + e.message);
+            }
+        });
+
         window.currentConvoId = null;
     </script>
 </body>
