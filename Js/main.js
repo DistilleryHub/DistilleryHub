@@ -5,60 +5,38 @@ import { uploadFile } from './upload.js';
 import { startCall } from './calling.js';
 
 window.addEventListener('load', () => {
+    // Post बटन
     const btnPost = document.getElementById('btnPost');
-    if (btnPost) {
-        btnPost.addEventListener('click', async () => {
-            const text = document.getElementById('postText').value.trim();
-            const imgInput = document.getElementById('postImgInput');
-            const file = imgInput && imgInput.files[0];
+    if (btnPost) btnPost.addEventListener('click', async () => {
+        const text = document.getElementById('postText').value.trim();
+        const imgInput = document.getElementById('postImgInput');
+        const file = imgInput && imgInput.files[0];
+        if (!text && !file) return alert('कुछ लिखो या फोटो चुनो');
+        
+        let imageURL = '';
+        if (file) {
+            try { imageURL = await uploadFile(file); } 
+            catch (e) { return alert('Upload failed: ' + e.message); }
+        }
+        await postText(text, imageURL);
+        document.getElementById('postText').value = '';
+        if (imgInput) imgInput.value = '';
+    });
 
-            if (!text && !file) { alert('कुछ लिखो या फोटो चुनो'); return; }
-
-            let imageURL = '';
-            if (file) {
-                try { imageURL = await uploadFile(file); }
-                catch (err) { alert('Image upload failed: ' + err.message); return; }
-            }
-
-            try {
-                await postText(text, imageURL);
-                document.getElementById('postText').value = '';
-                if (imgInput) imgInput.value = '';
-                alert('Post ho gaya!');
-            } catch (err) { alert('Post error: ' + err.message); }
+    // Feed Render (सुंदर कार्ड्स में)
+    const feedList = document.getElementById('feedList');
+    if (feedList) {
+        listenFeed(posts => {
+            feedList.innerHTML = posts.map(p => `
+                <div class="post-card">
+                    <div class="post-header">
+                        <div class="post-avatar">${p.authorName ? p.authorName.charAt(0) : 'U'}</div>
+                        <div><strong>${p.authorName || 'Member'}</strong></div>
+                    </div>
+                    <div class="post-body">${p.text || ''}</div>
+                    ${p.imageURL ? `<img class="post-image" src="${p.imageURL}" alt="Post Image">` : ''}
+                </div>
+            `).join('');
         });
     }
-
-    const btnStatus = document.getElementById('btnSubmitStatus');
-    if (btnStatus) {
-        btnStatus.addEventListener('click', async () => {
-            const text = document.getElementById('statusText').value.trim();
-            const imgInput = document.getElementById('statusImgInput');
-            const file = imgInput && imgInput.files[0];
-
-            let imageURL = '';
-            if (file) {
-                try { imageURL = await uploadFile(file); }
-                catch (err) { alert('Image upload failed'); return; }
-            }
-
-            try {
-                await postStatus(text, imageURL);
-                alert('Status post ho gaya!');
-            } catch (err) { alert('Status error: ' + err.message); }
-        });
-    }
-
-    const btnCall = document.getElementById('btnStartCall');
-    if (btnCall) {
-        btnCall.addEventListener('click', async () => {
-            const otherUid = document.getElementById('callTargetUid').value;
-            if (otherUid) {
-                const result = await startCall(otherUid, 'audio');
-                if (result) alert('Call started...');
-            }
-        });
-    }
-
-    listenFeed((posts) => { console.log('Posts:', posts); });
 });
