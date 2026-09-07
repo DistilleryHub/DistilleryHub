@@ -81,7 +81,11 @@
                         <div class="chat-window" id="chatWindow">
                             <div class="chat-header" id="chatHeader">Select a conversation</div>
                             <div class="chat-messages" id="chatMessages"></div>
+                            
+                            <!-- नया "+" बटन और फाइल इनपुट जोड़ा गया है -->
                             <div class="input-area">
+                                <button id="btnChatAttach" style="background:none; border:none; font-size:20px; cursor:pointer;">➕</button>
+                                <input type="file" id="chatImgInput" accept="image/*" style="display:none;">
                                 <input type="text" id="chatInput" placeholder="Write a message...">
                                 <button onclick="sendChatMessage()">➤</button>
                             </div>
@@ -97,6 +101,7 @@
     <script type="module">
         import { auth } from './js/firebase-init.js';
 
+        // Auth Functions
         window.handleSignIn = async function() {
             const email = document.getElementById('signinEmail').value;
             const password = document.getElementById('signinPassword').value;
@@ -131,27 +136,58 @@
             document.getElementById('authScreen').style.display = 'block';
         };
 
+        // Tab Switching
         window.switchTab = function(tab) {
             document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
             document.getElementById('panel-' + tab).style.display = 'block';
         };
 
+        // Post Function (Text + Image)
         window.submitPost = async function() {
             const text = document.getElementById('postText').value.trim();
-            if (!text) return alert('कुछ लिखो');
+            const imgInput = document.getElementById('postImgInput');
+            const file = imgInput && imgInput.files[0];
+
+            if (!text && !file) return alert('कुछ लिखो या फोटो चुनो');
+
+            let imageURL = '';
+            if (file) {
+                const { uploadFile } = await import('./js/upload.js');
+                try { imageURL = await uploadFile(file); } 
+                catch (e) { return alert('Upload failed: ' + e.message); }
+            }
+
             const { postText: postFn } = await import('./js/feed.js');
-            await postFn(text, '');
+            await postFn(text, imageURL);
             document.getElementById('postText').value = '';
+            if (imgInput) imgInput.value = '';
         };
 
+        // Chat Send Function (Text + Image)
         window.sendChatMessage = async function() {
-            const text = document.getElementById('chatInput').value.trim();
-            if (!text || !window.currentConvoId) return alert('पहले चैट सेलेक्ट करो');
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            const fileInput = document.getElementById('chatImgInput');
+            const file = fileInput && fileInput.files[0];
+
+            if (!text && !file) return;
+
+            if (!window.currentConvoId) return alert('पहले चैट सेलेक्ट करो');
+
+            let imageURL = '';
+            if (file) {
+                const { uploadFile } = await import('./js/upload.js');
+                try { imageURL = await uploadFile(file); } 
+                catch (e) { return alert('Image upload failed: ' + e.message); }
+            }
+
             const { sendMessage } = await import('./js/chat.js');
-            await sendMessage(window.currentConvoId, text);
-            document.getElementById('chatInput').value = '';
+            await sendMessage(window.currentConvoId, text, imageURL);
+            input.value = '';
+            if (fileInput) fileInput.value = '';
         };
 
+        // Global State
         window.currentConvoId = null;
     </script>
 </body>
