@@ -1,0 +1,29 @@
+name: Deploy to Firebase and Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pages: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase Tools
+        run: npm install -g firebase-tools
+
+      - name: Deploy to Firebase
+        # नोट: सुनिश्चित करें कि आपने GitHub Settings -> Secrets में FIREBASE_TOKEN डाला है
+        run: firebase deploy --only hosting,firestore:rules,storage:rules --project distilleryhub-b1d2d --token "${{ secrets.FIREBASE_TOKEN }}"
