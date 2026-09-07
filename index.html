@@ -1,2 +1,154 @@
-<script src="config.js"></script>
-<script type="module" src="js/main.js"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DistilleryHub</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js"></script>
+    <script type="module" src="js/main.js"></script>
+</head>
+<body>
+    <!-- AUTH SCREEN -->
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-card">
+            <h2>DistilleryHub</h2>
+            <p>Professional Network for Distillery & Ethanol Experts</p>
+            <input type="email" id="signinEmail" placeholder="Email">
+            <input type="password" id="signinPassword" placeholder="Password">
+            <button id="signinBtn" onclick="handleSignIn()">Sign In</button>
+            <button onclick="handleGoogleSignIn()">Continue with Google</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app" class="app-shell" style="display:none;">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="brand">DistilleryHub</div>
+            <div class="top-actions">
+                <button onclick="switchTab('feed')">Feed</button>
+                <button onclick="switchTab('network')">Network</button>
+                <button onclick="switchTab('jobs')">Jobs</button>
+                <button onclick="switchTab('articles')">Articles</button>
+                <button onclick="switchTab('chat')">Chat</button>
+                <button onclick="handleSignOut()">Logout</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-container">
+            <!-- Feed Panel -->
+            <div id="panel-feed" class="panel active">
+                <div class="composer">
+                    <textarea id="postText" placeholder="Share an update..."></textarea>
+                    <div class="composer-actions">
+                        <button onclick="document.getElementById('postImgInput').click()">📷 Photo</button>
+                        <input type="file" id="postImgInput" accept="image/*" style="display:none;">
+                        <button onclick="submitPost()">Post</button>
+                    </div>
+                </div>
+                <div id="feedList" class="feed-list"></div>
+            </div>
+
+            <!-- Network Panel -->
+            <div id="panel-network" class="panel" style="display:none;">
+                <div id="networkList" class="people-list"></div>
+            </div>
+
+            <!-- Jobs Panel -->
+            <div id="panel-jobs" class="panel" style="display:none;">
+                <div id="jobsList" class="grid-list"></div>
+            </div>
+
+            <!-- Articles Panel -->
+            <div id="panel-articles" class="panel" style="display:none;">
+                <div id="articlesList" class="grid-list"></div>
+            </div>
+
+            <!-- Chat Panel -->
+            <div id="panel-chat" class="panel" style="display:none;">
+                <div class="chat-interface">
+                    <div class="chat-list" id="convoList"></div>
+                    <div class="chat-window" id="chatWindow">
+                        <div class="chat-header" id="chatHeader">Select a conversation</div>
+                        <div class="chat-messages" id="chatMessages"></div>
+                        <div class="input-area">
+                            <input type="text" id="chatInput" placeholder="Write a message...">
+                            <button onclick="sendChatMessage()">➤</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // ---------- Auth Functions (Simple) ----------
+        window.handleSignIn = async function() {
+            const email = document.getElementById('signinEmail').value;
+            const password = document.getElementById('signinPassword').value;
+            try {
+                const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
+                await signInWithEmailAndPassword(auth, email, password);
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                alert('Login Successful');
+            } catch (e) {
+                alert('Login Failed: ' + e.message);
+            }
+        };
+
+        window.handleGoogleSignIn = async function() {
+            try {
+                const { GoogleAuthProvider, signInWithPopup } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                alert('Google Login Successful');
+            } catch (e) {
+                alert('Google Login Failed: ' + e.message);
+            }
+        };
+
+        window.handleSignOut = async function() {
+            const { signOut } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
+            await signOut(auth);
+            document.getElementById('app').style.display = 'none';
+            document.getElementById('authScreen').style.display = 'block';
+        };
+
+        // ---------- Tab Switching ----------
+        window.switchTab = function(tab) {
+            document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+            document.getElementById('panel-' + tab).style.display = 'block';
+        };
+
+        // ---------- Post & Chat Functions (Calling JS Modules) ----------
+        window.submitPost = async function() {
+            const text = document.getElementById('postText').value.trim();
+            if (!text) return alert('कुछ लिखो');
+            const { postText: postFn } = await import('./js/feed.js');
+            await postFn(text, '');
+            document.getElementById('postText').value = '';
+            alert('Post हो गया!');
+        };
+
+        window.sendChatMessage = async function() {
+            const text = document.getElementById('chatInput').value.trim();
+            if (!text || !currentConvoId) return alert('पहले चैट सेलेक्ट करो');
+            const { sendMessage } = await import('./js/chat.js');
+            await sendMessage(currentConvoId, text);
+            document.getElementById('chatInput').value = '';
+        };
+        
+        // Global State
+        let currentConvoId = null;
+        window.currentConvoId = currentConvoId;
+    </script>
+</body>
+</html>
