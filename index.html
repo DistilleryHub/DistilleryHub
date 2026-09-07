@@ -24,7 +24,6 @@
 
     <!-- MAIN APP -->
     <div id="app" class="app-shell" style="display:none;">
-        <!-- Topbar -->
         <div class="topbar">
             <div class="brand">
                 <div class="brand-icon">DH</div>
@@ -39,9 +38,7 @@
             </div>
         </div>
 
-        <!-- Main Layout -->
         <div class="main-layout">
-            <!-- Sidebar -->
             <div class="sidebar">
                 <div class="side-card">
                     <div class="side-avatar">U</div>
@@ -57,12 +54,10 @@
                 </div>
             </div>
 
-            <!-- Main Content -->
             <div class="content">
-                <!-- Feed Panel -->
                 <div id="panel-feed" class="panel active">
                     <div class="composer">
-                        <textarea id="postText" placeholder="Share an update, a batch note, a question for the network..."></textarea>
+                        <textarea id="postText" placeholder="Share an update..."></textarea>
                         <div class="composer-actions">
                             <button onclick="document.getElementById('postImgInput').click()">📷 Photo</button>
                             <input type="file" id="postImgInput" accept="image/*" style="display:none;">
@@ -72,17 +67,14 @@
                     <div id="feedList" class="feed-list"></div>
                 </div>
 
-                <!-- Network Panel -->
                 <div id="panel-network" class="panel" style="display:none;">
                     <div id="networkList" class="people-list"></div>
                 </div>
 
-                <!-- Jobs Panel -->
                 <div id="panel-jobs" class="panel" style="display:none;">
                     <div id="jobsList" class="grid-list"></div>
                 </div>
 
-                <!-- Chat Panel -->
                 <div id="panel-chat" class="panel" style="display:none;">
                     <div class="chat-interface">
                         <div class="chat-list" id="convoList"></div>
@@ -100,13 +92,11 @@
         </div>
     </div>
 
-    <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
     <script type="module">
         import { auth } from './js/firebase-init.js';
 
-        // Auth Functions
         window.handleSignIn = async function() {
             const email = document.getElementById('signinEmail').value;
             const password = document.getElementById('signinPassword').value;
@@ -141,13 +131,11 @@
             document.getElementById('authScreen').style.display = 'block';
         };
 
-        // Tab Switching
         window.switchTab = function(tab) {
             document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
             document.getElementById('panel-' + tab).style.display = 'block';
         };
 
-        // Post & Chat
         window.submitPost = async function() {
             const text = document.getElementById('postText').value.trim();
             if (!text) return alert('कुछ लिखो');
