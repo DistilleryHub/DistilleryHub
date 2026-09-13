@@ -45,19 +45,14 @@ exports.onNotificationCreated = onDocumentCreated(
     const n = event.data.data();
     if (!n || !n.userId) return;
 
-    // Respect chat mute (per-conversation "silent" flag set by the client)
     if (n.silent === true) return;
 
-    // Respect the recipient's notification settings. The client (Settings.jsx)
-    // writes these under users/{uid}.settings.*, not a top-level notifPrefs
-    // field — reading the wrong field used to mean these toggles were fully
-    // decorative and never actually stopped a push from going out.
     const userSnap = await db.collection('users').doc(n.userId).get();
     const userData = userSnap.data();
     if (!userData) return;
 
     const prefs = userData.settings || {};
-    if (prefs.notifyPush === false) return; // user turned off push entirely
+    if (prefs.notifyPush === false) return;
 
     const prefKey = PREF_KEY_MAP[n.type];
     if (prefKey && prefs[prefKey] === false) return;
@@ -75,7 +70,6 @@ exports.onNotificationCreated = onDocumentCreated(
       webpush: { fcmOptions: { link: url } },
     });
 
-    // Clean up dead/expired tokens so they stop being tried
     const badTokens = [];
     response.responses.forEach((r, i) => {
       if (!r.success) badTokens.push(tokens[i]);
@@ -87,3 +81,12 @@ exports.onNotificationCreated = onDocumentCreated(
     }
   }
 );
+
+// ---- Mobile + MPIN login ----
+exports.mpinLogin = require('./mpinAuth').mpinLogin;
+
+// ---- Account deletion (30-day safety flow) ----
+exports.requestAccountDeletion = require('./deleteAccount').requestAccountDeletion;
+exports.confirmAccountDeletion = require('./deleteAccount').confirmAccountDeletion;
+exports.cancelAccountDeletion = require('./deleteAccount').cancelAccountDeletion;
+exports.dailyDeletionCheck = require('./deleteAccount').dailyDeletionCheck;
