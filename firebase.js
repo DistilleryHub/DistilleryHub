@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 import { getMessaging, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
@@ -21,6 +22,7 @@ export const fbApp = initializeApp(firebaseConfig);
 export const auth = getAuth(fbApp);
 export const db = getFirestore(fbApp);
 export const storage = getStorage(fbApp);
+export const functions = getFunctions(fbApp);
 
 // Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
 export const VAPID_KEY = "BBceo8OB04fIWdPnTAInbfY8_zSqbuGrFVk41hpxtkfKIveY43s0Twzk62-9gSyP9YYL268IsPtsyYTkb1vOnK0";
