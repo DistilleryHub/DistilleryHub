@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
@@ -161,6 +161,52 @@ export default function Videos() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', videoURL: '', description: '' });
   const [saving, setSaving] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadPreview, setUploadPreview] = useState('');
+  const [uploadPct, setUploadPct] = useState(0);
+
+  function handleFilePick(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      toast('Please choose a video file');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 200 * 1024 * 1024) {
+      toast('Video too large (max ~200MB) — try a shorter clip or paste a link instead');
+      e.target.value = '';
+      return;
+    }
+    setUploadFile(file);
+    setUploadPreview(URL.createObjectURL(file));
+    setForm((f) => ({ ...f, videoURL: '' })); // uploading a file overrides the link field
+  }
+
+  function uploadVideoFile(file) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) setUploadPct(Math.round((ev.loaded / ev.total) * 100));
+      };
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data.secure_url) resolve(data.secure_url);
+          else {
+            console.error('Cloudinary video upload error:', data);
+            reject(new Error(data?.error?.message || 'Video upload failed'));
+          }
+        } catch (e) { reject(e); }
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(fd);
+    });
+  }
 
   useEffect(() => {
     const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'));
@@ -172,23 +218,34 @@ export default function Videos() {
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.videoURL.trim()) return;
+    if (!form.title.trim() || (!form.videoURL.trim() && !uploadFile)) return;
     setSaving(true);
     try {
+      let finalVideoURL = form.videoURL.trim();
+      if (uploadFile) {
+        setUploadPct(0);
+        finalVideoURL = await uploadVideoFile(uploadFile);
+      }
       await addDoc(collection(db, 'videos'), {
-        ...form,
+        title: form.title.trim(),
+        videoURL: finalVideoURL,
+        description: form.description,
         authorId: currentUser.uid,
         authorName: currentProfile?.name || 'Member',
         createdAt: serverTimestamp(),
       });
       setForm({ title: '', videoURL: '', description: '' });
+      setUploadFile(null);
+      setUploadPreview('');
+      setUploadPct(0);
       setShowForm(false);
       toast('Video shared');
     } catch (err) {
+      console.error('Video share failed', err);
       toast(err.message || 'Could not share video');
     }
     setSaving(false);
-  }, [form, currentUser, currentProfile, toast]);
+  }, [form, uploadFile, currentUser, currentProfile, toast]);
 
   async function removeVideo(video) {
     if (video.authorId !== currentUser.uid) return;
@@ -219,10 +276,36 @@ export default function Videos() {
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             className="w-full rounded-lg border border-slate-700 bg-navy-cardAlt px-3 py-2 text-[13.5px] text-white placeholder:text-slate-500"
           />
+
+          <label className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed border-slate-600 bg-navy-cardAlt px-3 py-3 text-[13px] text-slate-300 active:scale-[0.99]">
+            {uploadFile ? `Selected: ${uploadFile.name}` : '📤 Upload a video file from your device'}
+            <input type="file" accept="video/*" hidden onChange={handleFilePick} />
+          </label>
+          {uploadPreview && (
+            <div className="space-y-1">
+              <video src={uploadPreview} controls playsInline className="w-full rounded-lg max-h-52" />
+              {saving && uploadFile && (
+                <div className="h-1.5 w-full rounded-full bg-slate-700 overflow-hidden">
+                  <div className="h-full bg-brand transition-all" style={{ width: `${uploadPct}%` }} />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => { setUploadFile(null); setUploadPreview(''); setUploadPct(0); }}
+                className="text-[12px] text-slate-400 underline"
+              >
+                Remove selected file
+              </button>
+            </div>
+          )}
+
+          <div className="text-center text-[11px] text-slate-500">— or paste a link instead —</div>
+
           <input
             type="text" placeholder="YouTube link, Shorts link, or direct video URL (mp4)" value={form.videoURL}
+            disabled={!!uploadFile}
             onChange={(e) => setForm({ ...form, videoURL: e.target.value })}
-            className="w-full rounded-lg border border-slate-700 bg-navy-cardAlt px-3 py-2 text-[13.5px] text-white placeholder:text-slate-500"
+            className="w-full rounded-lg border border-slate-700 bg-navy-cardAlt px-3 py-2 text-[13.5px] text-white placeholder:text-slate-500 disabled:opacity-40"
           />
           <textarea
             placeholder="Description" rows={2} value={form.description}
