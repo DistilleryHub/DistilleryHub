@@ -219,6 +219,7 @@ function OutgoingCallOverlay({ call, localStream, muted, videoOff, speakerOn, on
       <div className="call-incoming-top">
         <span className="call-type-label">{isVideoCall ? 'Video calling…' : 'Calling…'}</span>
       </div>
+
       <div className="call-active-header">
         <h2 className="call-caller-name">
           {isGroup ? `${profile.name || 'Member'} +${otherUids.length - 1} more` : (profile.name || 'DistilleryHub member')}
@@ -274,7 +275,11 @@ function OneOnOneActiveLayout({
   }, [pipStream]);
 
   // Remote audio always plays through this dedicated element, independent of
-  // which video (big or PiP) is currently showing the remote feed.
+  // which video (big or PiP) is currently showing the remote feed. Both video
+  // elements are kept muted="muted" (regardless of local/remote) on purpose —
+  // unmuting whichever one shows the remote feed used to play the same audio
+  // track a second time in parallel, which is what caused the garbled/robotic
+  // "double voice" during calls.
   useEffect(() => {
     if (!remoteAudioRef.current) return;
     remoteAudioRef.current.srcObject = remoteStream || null;
@@ -305,7 +310,7 @@ function OneOnOneActiveLayout({
       )}
 
       {showBigVideo ? (
-        <video ref={bigVideoRef} className="call-remote-video" autoPlay playsInline muted={!bigIsRemote} />
+        <video ref={bigVideoRef} className="call-remote-video" autoPlay playsInline muted />
       ) : (
         <div className="call-remote-audio-bg"><Avatar profile={profile} size={140} /></div>
       )}
@@ -321,7 +326,7 @@ function OneOnOneActiveLayout({
           onClick={() => setPipIsLocal((v) => !v)}
           aria-label="Swap main and picture-in-picture video"
         >
-          <video ref={pipVideoRef} className="call-local-video" autoPlay playsInline muted={pipIsLocal} />
+          <video ref={pipVideoRef} className="call-local-video" autoPlay playsInline muted />
         </button>
       )}
 
@@ -370,7 +375,7 @@ function ParticipantTile({ uid, stream, isLocal, isVideoCall, speakerOn }) {
     <div className={'call-grid-tile' + (speaking ? ' speaking' : '')}>
       {!isLocal && <audio ref={audioRef} autoPlay />}
       {hasVideo ? (
-        <video ref={videoRef} className="call-grid-video" autoPlay playsInline muted={isLocal} />
+        <video ref={videoRef} className="call-grid-video" autoPlay playsInline muted />
       ) : (
         <div className="call-grid-avatar-wrap"><Avatar profile={profile} size={64} /></div>
       )}
@@ -479,4 +484,4 @@ export default function CallScreen() {
   }
 
   return null;
-          }
+      }
