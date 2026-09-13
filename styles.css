@@ -39,6 +39,56 @@
 [data-theme="light"] .btn-ghost { color: var(--muted); border-color: var(--border); }
 [data-theme="light"] ::selection { background: var(--primary-soft); }
 
+/* Navy Dark — explicit block matching :root, so all 4 themes are
+   equally selectable by name (the bare :root values above still serve
+   as the pre-hydration default, see main.jsx). */
+[data-theme="navy-dark"] {
+  --bg: #0b1325;
+  --bg-elevated: #0f1729;
+  --card-bg: #131e36;
+  --card-hover: #1a2842;
+  --text: #eef2f7;
+  --muted: #8b98ac;
+  --muted-2: #5f6c80;
+  --primary: #4f7fff;
+  --primary-hover: #3d6bef;
+  --primary-soft: rgba(79, 127, 255, 0.12);
+  --danger: #f5576c;
+  --border: #1e2b45;
+}
+
+/* Distillery Green — industrial bio-ethanol emerald theme. */
+[data-theme="distillery-green"] {
+  --bg: #071a14;
+  --bg-elevated: #0b241c;
+  --card-bg: #0f2e23;
+  --card-hover: #163a2c;
+  --text: #ecfdf5;
+  --muted: #86efac;
+  --muted-2: #4ade80;
+  --primary: #10b981;
+  --primary-hover: #0ea371;
+  --primary-soft: rgba(16, 185, 129, 0.14);
+  --danger: #f5576c;
+  --border: #1e4a3a;
+}
+
+/* Amber Dark — industrial charcoal & amber theme. */
+[data-theme="amber-dark"] {
+  --bg: #1a1508;
+  --bg-elevated: #201a0c;
+  --card-bg: #262015;
+  --card-hover: #2f271a;
+  --text: #fff7ed;
+  --muted: #d6a85c;
+  --muted-2: #b3894a;
+  --primary: #f59e0b;
+  --primary-hover: #d9890a;
+  --primary-soft: rgba(245, 158, 11, 0.14);
+  --danger: #f5576c;
+  --border: #3a2f1a;
+}
+
 * { box-sizing: border-box; }
 html, body { transition: background-color 0.15s ease, color 0.15s ease; }
 
@@ -379,13 +429,10 @@ input::placeholder, textarea::placeholder { color: var(--muted-2); }
 .notification-message { font-size: 14px; color: var(--text); line-height: 1.4; }
 .notification-row.unread .notification-message { font-weight: 600; }
 .notification-dot {
-  position: absolute; top: 18px; right: 44px;
+  position: absolute; top: 18px; right: 16px;
   width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
 }
 .notification-row .btn { flex-shrink: 0; margin-top: 2px; }
-.notifications-toolbar { display: flex; gap: 8px; padding: 0 16px 10px; flex-wrap: wrap; }
-.notification-delete { opacity: 0.6; }
-.notification-delete:hover { opacity: 1; }
 
 /* ===== Status / Stories ===== */
 .status-bar { display: flex; gap: 14px; overflow-x: auto; padding: 10px 2px; scrollbar-width: none; }
@@ -1037,3 +1084,61 @@ input::placeholder, textarea::placeholder { color: var(--muted-2); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== Group settings / manage-group panel — chat.jsx =====
+   BUG FIX: this panel previously used an inline `background: #00000010`
+   (a ~6% opaque black wash) which let the active chat wallpaper show
+   through. On a light wallpaper the panel rendered as a light-grey
+   card while its text still inherited --text from a dark theme
+   (near-white), making member names/checkbox labels unreadable.
+   Fix: give the panel its own solid, theme-aware surface that is
+   never affected by the wallpaper underneath it. */
+.group-settings-panel {
+  padding: 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group-settings-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 500;
+}
+.group-settings-checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+
+.group-settings-block strong {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.group-member-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.group-member-row:last-child { border-bottom: none; }
+.group-member-row .member-name { color: var(--text); font-weight: 500; }
+.group-member-row .member-meta { color: var(--muted); font-size: 12px; }
+
+.group-settings-empty { color: var(--muted); font-size: 13px; }

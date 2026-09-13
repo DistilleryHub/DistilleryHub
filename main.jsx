@@ -1,7 +1,10 @@
 import React from 'react';
 // Applied synchronously before first paint so there's no flash of the
 // wrong theme/accent/layout while React boots up.
-const savedTheme = localStorage.getItem('dh-theme') || 'dark';
+const VALID_THEMES = ['navy-dark', 'light', 'distillery-green', 'amber-dark'];
+let savedTheme = localStorage.getItem('dh-theme') || 'navy-dark';
+if (savedTheme === 'dark') savedTheme = 'navy-dark'; // migrate pre-4-theme installs
+if (!VALID_THEMES.includes(savedTheme)) savedTheme = 'navy-dark';
 document.documentElement.setAttribute('data-theme', savedTheme);
 const savedAccent = localStorage.getItem('dh-accent');
 if (savedAccent) document.documentElement.style.setProperty('--primary', savedAccent);

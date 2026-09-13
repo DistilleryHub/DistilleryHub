@@ -7,7 +7,6 @@ import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase'
 import { useAuth } from './AuthContext';
 import { useCall } from './CallContext';
 import { useLanguage } from './LanguageContext';
-import { notify } from './notify';
 
 function chatIdFor(uidA, uidB) {
   return [uidA, uidB].sort().join('_');
@@ -123,7 +122,7 @@ function renderFormattedText(text) {
 }
 
 export default function Chat() {
-  const { currentUser, currentProfile } = useAuth();
+  const { currentUser } = useAuth();
   const { startCall } = useCall();
   const { t } = useLanguage();
   const [people, setPeople] = useState([]);
@@ -264,18 +263,22 @@ export default function Chat() {
 
   async function notifyMentioned(uids, body) {
     const { chatId } = getChatMeta();
-    const senderName = currentProfile?.name || currentUser.displayName || currentUser.email || 'Someone';
     for (const uid of uids) {
-      notify({
-        toUserId: uid,
-        type: 'mention',
-        message: `${senderName} mentioned you in ${activeChat.chat.name}`,
-        link: '/chat',
-        fromUserId: currentUser.uid,
-        fromUserName: senderName,
-        fromUserPhoto: currentProfile?.photoURL || '',
-        extra: { chatId, groupName: activeChat.chat.name },
-      });
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          toUserId: uid,
+          type: 'mention',
+          fromUserId: currentUser.uid,
+          fromUserName: currentUser.displayName || currentUser.email,
+          chatId,
+          groupName: activeChat.chat.name,
+          text: body,
+          read: false,
+          createdAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error('Failed to notify mentioned user', err);
+      }
     }
   }
 
@@ -467,36 +470,11 @@ export default function Chat() {
         ...(expiresAt ? { expiresAt } : {}),
         ...extra,
       });
-      notifyChatParticipants(participants, body, extra);
     } catch (err) {
       console.error('sendRawMessage failed', err);
       alert('Message send failed: ' + err.code + ' — ' + err.message);
       setText(body);
     }
-  }
-
-  // Notifies everyone else in the chat about a new message — skips the
-  // sender, and skips anyone who has muted this chat (chatMeta.mutedBy).
-  function notifyChatParticipants(participants, body, extra = {}) {
-    const senderName = currentProfile?.name || currentUser.displayName || currentUser.email || 'Someone';
-    const isGroup = activeChat?.type === 'group';
-    const groupName = isGroup ? activeChat.chat.name : '';
-    const mutedBy = chatMeta?.mutedBy || [];
-    const mentioned = extra.mentions || []; // they get a more specific "mentioned you" notification instead
-    const preview = body?.trim() ? body.trim().slice(0, 80) : `[${extra.attachmentType || 'attachment'}]`;
-    (participants || [])
-      .filter((uid) => uid !== currentUser.uid && !mutedBy.includes(uid) && !mentioned.includes(uid))
-      .forEach((uid) => {
-        notify({
-          toUserId: uid,
-          type: 'message',
-          message: isGroup ? `${senderName} in ${groupName}: ${preview}` : `${senderName}: ${preview}`,
-          link: '/chat',
-          fromUserId: currentUser.uid,
-          fromUserName: senderName,
-          fromUserPhoto: currentProfile?.photoURL || '',
-        });
-      });
   }
 
   async function sendMessage(e) {
@@ -1078,8 +1056,8 @@ export default function Chat() {
         )}
 
         {activeChat.type === 'group' && showManageGroup && (
-          <div className="manage-group-panel" style={{ padding: 12, background: '#00000010', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="group-settings-panel">
+            <label className="group-settings-checkbox-row">
               <input
                 type="checkbox"
                 checked={!!chatMeta?.onlyAdminsCanSend}
@@ -1089,7 +1067,7 @@ export default function Chat() {
               Only admins can send messages
             </label>
 
-            <div>
+            <div className="group-settings-block">
               <strong>Members</strong>
               {groupParticipantIds.map((uid) => {
                 const p = uid === currentUser.uid
@@ -1097,8 +1075,8 @@ export default function Chat() {
                   : people.find((pp) => pp.id === uid) || { id: uid, name: 'Member' };
                 const memberIsAdmin = (chatMeta?.admins || []).includes(uid);
                 return (
-                  <div key={uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                    <span>{p.name}{memberIsAdmin ? ' 👑' : ''}</span>
+                  <div className="group-member-row" key={uid}>
+                    <span className="member-name">{p.name}{memberIsAdmin ? ' 👑' : ''}</span>
                     {isAdmin && uid !== currentUser.uid && (
                       memberIsAdmin
                         ? <button className="btn btn-ghost btn-sm" onClick={() => removeAdmin(uid)}>Remove admin</button>
@@ -1110,13 +1088,13 @@ export default function Chat() {
             </div>
 
             {isAdmin && (chatMeta?.pendingMembers || []).length > 0 && (
-              <div>
+              <div className="group-settings-block">
                 <strong>Pending requests</strong>
                 {(chatMeta.pendingMembers || []).map((uid) => {
                   const p = people.find((pp) => pp.id === uid) || { id: uid, name: 'Member' };
                   return (
-                    <div key={uid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                      <span>{p.name}</span>
+                    <div className="group-member-row" key={uid}>
+                      <span className="member-name">{p.name}</span>
                       <span style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-primary btn-sm" onClick={() => approveMember(uid)}>Approve</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => rejectMember(uid)}>Reject</button>
@@ -1127,16 +1105,18 @@ export default function Chat() {
               </div>
             )}
 
-            <div>
+            <div className="group-settings-block">
               <button className="btn btn-ghost btn-sm" onClick={() => setShowAddMemberList((v) => !v)}>
                 {showAddMemberList ? 'Cancel' : '+ Add member'}
               </button>
               {showAddMemberList && (
-                <div style={{ marginTop: 6 }}>
-                  {addableConnections.length === 0 && <div style={{ opacity: 0.7 }}>No connections left to add.</div>}
+                <div style={{ marginTop: 8 }}>
+                  {addableConnections.length === 0 && (
+                    <div className="group-settings-empty">No connections left to add.</div>
+                  )}
                   {addableConnections.map((p) => (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                      <span>{p.name}</span>
+                    <div className="group-member-row" key={p.id}>
+                      <span className="member-name">{p.name}</span>
                       <button className="btn btn-ghost btn-sm" onClick={() => requestAddMember(p.id)}>
                         {isAdmin ? 'Add' : 'Request'}
                       </button>

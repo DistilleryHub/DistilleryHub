@@ -74,7 +74,7 @@ export default function Settings() {
   const toast = useToast();
   const navigate = useNavigate();
   const { t, lang, setLang, languages } = useLanguage();
-  const { theme, setTheme, accent, setAccent, compact, setCompact, ACCENT_COLORS } = useTheme();
+  const { theme, setTheme, themes, accent, setAccent, compact, setCompact, ACCENT_COLORS } = useTheme();
   const { permission: pushPermission, enabling: pushEnabling, enableNotifications, disableNotifications } = useNotifications();
 
   // null = main menu list screen (like a typical professional-network Settings home).
@@ -477,21 +477,37 @@ export default function Settings() {
 
               <div className="settings-field">
                 <span>{t('settings.appearance.theme')}</span>
-                <div className="theme-toggle-row">
-                  <button
-                    type="button"
-                    className={'theme-toggle-btn' + (theme === 'dark' ? ' active' : '')}
-                    onClick={() => setTheme('dark')}
-                  >
-                    🌙 {t('settings.appearance.theme.dark')}
-                  </button>
-                  <button
-                    type="button"
-                    className={'theme-toggle-btn' + (theme === 'light' ? ' active' : '')}
-                    onClick={() => setTheme('light')}
-                  >
-                    ☀️ {t('settings.appearance.theme.light')}
-                  </button>
+                <div
+                  className="theme-toggle-row"
+                  style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}
+                >
+                  {themes.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={'theme-toggle-btn' + (theme === preset.id ? ' active' : '')}
+                      onClick={() => setTheme(preset.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        justifyContent: 'flex-start',
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          flexShrink: 0,
+                          background: preset.swatch.card,
+                          border: `2px solid ${preset.swatch.accent}`,
+                        }}
+                      />
+                      {preset.emoji} {preset.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
