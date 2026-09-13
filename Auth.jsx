@@ -12,31 +12,41 @@ function friendlyAuthError(err) {
   if (code.includes('weak-password')) return 'Password should be at least 6 characters.';
   if (code.includes('invalid-email')) return 'Please enter a valid email address.';
   if (code.includes('popup-closed-by-user')) return '';
-  return err?.message || 'Something went wrong. Please try again.';
+  if (err?.message) return err.message.replace('Firebase: ', '').replace(/\(.*\)\.?/, '').trim();
+  return 'Something went wrong. Please try again.';
 }
 
 export default function Auth() {
-  const { signup, signin, googleSignIn, forgotPassword } = useAuth();
+  const { signup, signin, signinWithMpin, googleSignIn, forgotPassword } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('signin'); // 'signin' | 'signup'
+  const [loginMethod, setLoginMethod] = useState('email'); // 'email' | 'mobile'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const [signinEmail, setSigninEmail] = useState('');
   const [signinPassword, setSigninPassword] = useState('');
+  const [signinMobile, setSigninMobile] = useState('');
+  const [signinMpin, setSigninMpin] = useState('');
 
   const [signupName, setSignupName] = useState('');
   const [signupHeadline, setSignupHeadline] = useState('');
+  const [signupMobile, setSignupMobile] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [signupMpin, setSignupMpin] = useState('');
 
   async function handleSignin(e) {
     e.preventDefault();
     setError(''); setBusy(true);
     try {
-      await signin({ email: signinEmail.trim(), password: signinPassword });
+      if (loginMethod === 'email') {
+        await signin({ email: signinEmail.trim(), password: signinPassword });
+      } else {
+        await signinWithMpin({ mobile: signinMobile.trim(), mpin: signinMpin });
+      }
       navigate('/');
     } catch (err) {
       setError(friendlyAuthError(err));
@@ -46,14 +56,21 @@ export default function Auth() {
 
   async function handleSignup(e) {
     e.preventDefault();
+    if (signupMpin.length < 4) {
+      setError('MPIN kam se kam 4 digit ka hona chahiye.');
+      return;
+    }
     setError(''); setBusy(true);
     try {
       await signup({
         name: signupName.trim(),
         headline: signupHeadline.trim(),
+        mobile: signupMobile.trim(),
         email: signupEmail.trim(),
         password: signupPassword,
+        mpin: signupMpin,
       });
+      toast('Account ban gaya! Email verification link bheji gayi hai — check karo.');
       navigate('/');
     } catch (err) {
       setError(friendlyAuthError(err));
@@ -94,20 +111,10 @@ export default function Auth() {
         </div>
 
         <div className="auth-tabs">
-          <button
-            type="button"
-            className={'auth-tab' + (tab === 'signin' ? ' active' : '')}
-            onClick={() => { setTab('signin'); setError(''); }}
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            className={'auth-tab' + (tab === 'signup' ? ' active' : '')}
-            onClick={() => { setTab('signup'); setError(''); }}
-          >
-            Sign up
-          </button>
+          <button type="button" className={'auth-tab' + (tab === 'signin' ? ' active' : '')}
+            onClick={() => { setTab('signin'); setError(''); }}>Sign in</button>
+          <button type="button" className={'auth-tab' + (tab === 'signup' ? ' active' : '')}
+            onClick={() => { setTab('signup'); setError(''); }}>Sign up</button>
         </div>
 
         {error && <div className="auth-error" style={{ display: 'block' }}>{error}</div>}
@@ -124,26 +131,56 @@ export default function Auth() {
         <div className="or-sep">or</div>
 
         {tab === 'signin' && (
-          <form onSubmit={handleSignin}>
-            <div className="form-field">
-              <label>Email</label>
-              <input type="email" required autoComplete="email"
-                value={signinEmail} onChange={(e) => setSigninEmail(e.target.value)} />
+          <>
+            <div className="auth-tabs" style={{ marginBottom: 12 }}>
+              <button type="button" className={'auth-tab' + (loginMethod === 'email' ? ' active' : '')}
+                onClick={() => { setLoginMethod('email'); setError(''); }}>Email</button>
+              <button type="button" className={'auth-tab' + (loginMethod === 'mobile' ? ' active' : '')}
+                onClick={() => { setLoginMethod('mobile'); setError(''); }}>Mobile + MPIN</button>
             </div>
-            <div className="form-field">
-              <label>Password</label>
-              <input type="password" required autoComplete="current-password"
-                value={signinPassword} onChange={(e) => setSigninPassword(e.target.value)} />
-            </div>
-            <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-              {busy ? <span className="spinner" /> : 'Sign in'}
-            </button>
-            <div className="auth-link">
-              <button type="button" className="linklike" onClick={handleForgotPassword}>
-                Forgot password?
+
+            <form onSubmit={handleSignin}>
+              {loginMethod === 'email' ? (
+                <>
+                  <div className="form-field">
+                    <label>Email</label>
+                    <input type="email" required autoComplete="email"
+                      value={signinEmail} onChange={(e) => setSigninEmail(e.target.value)} />
+                  </div>
+                  <div className="form-field">
+                    <label>Password</label>
+                    <input type="password" required autoComplete="current-password"
+                      value={signinPassword} onChange={(e) => setSigninPassword(e.target.value)} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-field">
+                    <label>Mobile number</label>
+                    <input type="tel" required
+                      value={signinMobile} onChange={(e) => setSigninMobile(e.target.value)} />
+                  </div>
+                  <div className="form-field">
+                    <label>MPIN</label>
+                    <input type="password" inputMode="numeric" maxLength={6} required
+                      value={signinMpin} onChange={(e) => setSigninMpin(e.target.value.replace(/\D/g, ''))} />
+                  </div>
+                </>
+              )}
+
+              <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+                {busy ? <span className="spinner" /> : 'Sign in'}
               </button>
-            </div>
-          </form>
+
+              {loginMethod === 'email' && (
+                <div className="auth-link">
+                  <button type="button" className="linklike" onClick={handleForgotPassword}>
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+            </form>
+          </>
         )}
 
         {tab === 'signup' && (
@@ -152,6 +189,11 @@ export default function Auth() {
               <label>Full name</label>
               <input type="text" required
                 value={signupName} onChange={(e) => setSignupName(e.target.value)} />
+            </div>
+            <div className="form-field">
+              <label>Mobile number</label>
+              <input type="tel" required
+                value={signupMobile} onChange={(e) => setSignupMobile(e.target.value)} />
             </div>
             <div className="form-field">
               <label>Headline</label>
@@ -168,6 +210,11 @@ export default function Auth() {
               <input type="password" required minLength={6} autoComplete="new-password"
                 value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} />
             </div>
+            <div className="form-field">
+              <label>MPIN (4-6 digit, quick login ke liye)</label>
+              <input type="password" inputMode="numeric" maxLength={6} required
+                value={signupMpin} onChange={(e) => setSignupMpin(e.target.value.replace(/\D/g, ''))} />
+            </div>
             <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
               {busy ? <span className="spinner" /> : 'Create account'}
             </button>
@@ -176,4 +223,4 @@ export default function Auth() {
       </div>
     </div>
   );
-}
+            }
