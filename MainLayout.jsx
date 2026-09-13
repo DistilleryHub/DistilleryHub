@@ -36,8 +36,25 @@ export default function MainLayout({ children }) {
     return unsub;
   }, [currentUser]);
 
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true);
+    const goOnline = () => setIsOffline(false);
+    window.addEventListener('offline', goOffline);
+    window.addEventListener('online', goOnline);
+    return () => {
+      window.removeEventListener('offline', goOffline);
+      window.removeEventListener('online', goOnline);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-navy-bg text-slate-100">
+      {isOffline && (
+        <div className="sticky top-0 z-[60] bg-amber-500 px-3 py-1.5 text-center text-[12.5px] font-semibold text-black">
+          ⚠️ No internet connection — some actions won't work until you're back online
+        </div>
+      )}
       <TopBar profile={currentProfile} unreadNotifications={unreadCount} />
 
       <main className="mx-auto w-full max-w-2xl px-3 pb-24 pt-3 sm:px-4">
