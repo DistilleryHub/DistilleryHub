@@ -130,7 +130,7 @@ export default function Feed() {
       if (media) {
         mediaURL = await uploadMedia(media, mediaType);
       }
-      await addDoc(collection(db, 'posts'), {
+      const postRef = await addDoc(collection(db, 'posts'), {
         authorId: currentUser.uid,
         authorName: currentProfile?.name || 'Member',
         authorHeadline: currentProfile?.headline || '',
@@ -142,6 +142,23 @@ export default function Feed() {
         shares: [],
         createdAt: serverTimestamp(),
       });
+      // A video shared from the feed should also show up on the Videos page.
+      if (mediaType === 'video' && mediaURL) {
+        try {
+          await addDoc(collection(db, 'videos'), {
+            title: text.trim() ? text.trim().slice(0, 80) : 'Video',
+            videoURL: mediaURL,
+            description: text.trim(),
+            authorId: currentUser.uid,
+            authorName: currentProfile?.name || 'Member',
+            sourcePostId: postRef.id,
+            createdAt: serverTimestamp(),
+          });
+        } catch (mirrorErr) {
+          // Post itself already succeeded — don't fail the whole action over this.
+          console.error('Could not mirror video to Videos page', mirrorErr);
+        }
+      }
       setText(''); setMedia(null); setMediaType(''); setPreview('');
       toast('Posted');
     } catch (err) {
