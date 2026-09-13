@@ -23,17 +23,39 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentProfile, setCurrentProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  // isAdmin here comes from the verified Auth custom claim, NOT the
+  // users/{uid}.isAdmin Firestore field. The Firestore field can only
+  // ever be used for display (e.g. the ADMIN badge in Admin.jsx) --
+  // Firestore rules and this claim are what actually gate access.
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (!user) {
         setCurrentProfile(null);
+        setIsAdmin(false);
         setAuthLoading(false);
+        return;
       }
+      const tokenResult = await user.getIdTokenResult();
+      setIsAdmin(tokenResult.claims.admin === true);
     });
     return unsub;
   }, []);
+
+  // Call this once for a legacy admin (users/{uid}.isAdmin === true in
+  // Firestore) to move them onto the real admin custom claim. Safe to
+  // expose to any signed-in user: the Cloud Function itself checks the
+  // legacy Firestore flag server-side before granting anything, so a
+  // non-admin calling this just gets a permission-denied error.
+  async function bootstrapAdminClaim() {
+    const bootstrap = httpsCallable(functions, 'bootstrapAdminClaimFromLegacyFlag');
+    await bootstrap();
+    await auth.currentUser.getIdToken(true); // force refresh so the new claim takes effect
+    const tokenResult = await auth.currentUser.getIdTokenResult();
+    setIsAdmin(tokenResult.claims.admin === true);
+  }
 
   useEffect(() => {
     if (!currentUser) return;
@@ -92,7 +114,7 @@ export function AuthProvider({ children }) {
   }
 
   const value = {
-    currentUser, currentProfile, authLoading,
+    currentUser, currentProfile, authLoading, isAdmin, bootstrapAdminClaim,
     signup, signin, signinWithMpin, googleSignIn, forgotPassword, logout,
   };
 
