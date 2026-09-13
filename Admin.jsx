@@ -5,8 +5,20 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
 export default function Admin() {
-  const { currentProfile } = useAuth();
+  const { currentProfile, isAdmin, bootstrapAdminClaim } = useAuth();
   const toast = useToast();
+  const [migrating, setMigrating] = useState(false);
+
+  async function handleBootstrap() {
+    setMigrating(true);
+    try {
+      await bootstrapAdminClaim();
+      toast('Admin access upgraded — welcome back.');
+    } catch (err) {
+      toast(err.message || 'Could not upgrade admin access.');
+    }
+    setMigrating(false);
+  }
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
   const [search, setSearch] = useState('');
@@ -40,7 +52,20 @@ export default function Admin() {
     await updateDoc(doc(db, 'reports', report.id), { status: 'resolved' });
   }
 
-  if (!currentProfile?.isAdmin) {
+  if (!isAdmin) {
+    // Legacy admins (marked isAdmin: true in Firestore before this
+    // security update) get a one-tap upgrade instead of being locked
+    // out cold. Anyone else just sees the plain access-denied message.
+    if (currentProfile?.isAdmin) {
+      return (
+        <div className="empty-state">
+          <p>Your admin access needs a one-time upgrade to the new security model.</p>
+          <button className="btn btn-primary" onClick={handleBootstrap} disabled={migrating}>
+            {migrating ? 'Upgrading…' : 'Upgrade admin access'}
+          </button>
+        </div>
+      );
+    }
     return <div className="empty-state">You don't have access to this page.</div>;
   }
 
