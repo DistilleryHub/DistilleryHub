@@ -7,6 +7,7 @@ import { useToast } from './ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from './LanguageContext';
 import { useTheme } from './ThemeContext';
+import { useNotifications } from './src/context/NotificationContext';
 
 const DEFAULT_SETTINGS = {
   // Privacy & Visibility
@@ -74,6 +75,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const { t, lang, setLang, languages } = useLanguage();
   const { theme, setTheme, accent, setAccent, compact, setCompact, ACCENT_COLORS } = useTheme();
+  const { permission: pushPermission, enabling: pushEnabling, enableNotifications, disableNotifications } = useNotifications();
 
   // null = main menu list screen (like a typical professional-network Settings home).
   const [activeTab, setActiveTab] = useState(null);
@@ -122,6 +124,20 @@ export default function Settings() {
     } catch (err) {
       toast(t('toast.settingSaveFail'));
     }
+  }
+
+  // Push toggle "on" karne par sirf Firestore flag save karna kaafi nahi hai —
+  // browser se actual Notification permission maangni hai aur FCM token
+  // generate/save karna hai, warna server ke paas bhejne ke liye koi token
+  // hi nahi hoga aur notification kabhi mobile pe aayegi hi nahi.
+  async function handlePushToggle(v) {
+    if (v) {
+      const ok = await enableNotifications();
+      if (!ok) return; // permission deny ya unsupported — flag mat badlo
+    } else {
+      await disableNotifications();
+    }
+    saveSettings({ notifyPush: v });
   }
 
   async function saveProfile(e) {
@@ -437,8 +453,15 @@ export default function Settings() {
               />
               <Toggle
                 label={t('settings.notif.push')}
-                checked={settings.notifyPush}
-                onChange={(v) => saveSettings({ notifyPush: v })}
+                hint={
+                  pushPermission === 'denied'
+                    ? 'Notifications block hain browser/device settings mein — waha se manually allow karo'
+                    : pushEnabling
+                      ? 'Enabling…'
+                      : undefined
+                }
+                checked={settings.notifyPush && pushPermission === 'granted'}
+                onChange={handlePushToggle}
               />
               <Toggle
                 label={t('settings.notif.email')}

@@ -219,7 +219,6 @@ function OutgoingCallOverlay({ call, localStream, muted, videoOff, speakerOn, on
       <div className="call-incoming-top">
         <span className="call-type-label">{isVideoCall ? 'Video calling…' : 'Calling…'}</span>
       </div>
-
       <div className="call-active-header">
         <h2 className="call-caller-name">
           {isGroup ? `${profile.name || 'Member'} +${otherUids.length - 1} more` : (profile.name || 'DistilleryHub member')}
@@ -484,4 +483,4 @@ export default function CallScreen() {
   }
 
   return null;
-      }
+          }

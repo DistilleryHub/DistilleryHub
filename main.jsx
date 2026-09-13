@@ -14,6 +14,7 @@ import { AuthProvider } from './AuthContext.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { ThemeProvider } from './ThemeContext.jsx';
 import { LanguageProvider } from './LanguageContext.jsx';
+import { NotificationProvider } from './src/context/NotificationContext.jsx';
 import './styles.css';
 import './tailwind.css';
 
@@ -24,7 +25,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <LanguageProvider>
           <ToastProvider>
             <AuthProvider>
-              <App />
+              <NotificationProvider>
+                <App />
+              </NotificationProvider>
             </AuthProvider>
           </ToastProvider>
         </LanguageProvider>

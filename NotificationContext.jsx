@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { db, VAPID_KEY, getMessagingIfSupported } from './firebase';
+import { db, VAPID_KEY, getMessagingIfSupported } from '../firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
@@ -9,7 +9,7 @@ const NotificationContext = createContext(null);
 
 export function NotificationProvider({ children }) {
   const { currentUser } = useAuth();
-  const { showToast } = useToast();
+  const showToast = useToast();
   const [permission, setPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
