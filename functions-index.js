@@ -1,4 +1,5 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -7,29 +8,18 @@ const messaging = admin.messaging();
 
 // Maps a notification's "type" to the matching Settings.jsx toggle field
 // (nested under users/{uid}.settings.*). Types with no dedicated toggle in
-// the UI (like, comment, connection_request/accept, group_add, mention,
-// rfq_quote/rfq_accepted) always send — same as before, just documented
-// instead of accidentally falling through. Add a line here whenever a new
-// notification type should respect one of the Settings toggles.
+// the UI (like, comment, connection_request/accept) always send — same as
+// before, just documented instead of accidentally falling through.
 const PREF_KEY_MAP = {
   message: 'notifyChatMessages',
   mention: 'notifyChatMessages',
   group_add: 'notifyChatMessages',
   group_call: 'notifyChatMessages',
   job_application: 'notifyJobAlerts',
-  rfq_quote: 'notifyMarketLeads',
-  rfq_accepted: 'notifyMarketLeads',
 };
 
-// Every notification created client-side (via notify() in notify.js) already
-// carries the exact text to show, in n.message — so we use that directly for
-// the push title/body instead of re-deriving it. buildNotifText() below is
-// only a fallback for older/unusual docs that have no n.message.
 function buildNotifText(n) {
-  if (n.message) {
-    return { title: n.fromUserName || 'DistilleryHub', body: n.message };
-  }
-  const name = n.fromUserName || n.fromName || 'Someone';
+  const name = n.fromName || 'Someone';
   switch (n.type) {
     case 'like': return { title: 'New like', body: `${name} liked your post` };
     case 'comment': return { title: 'New comment', body: `${name} commented on your post` };
@@ -44,13 +34,9 @@ function buildNotifText(n) {
   }
 }
 
-// Notifications created client-side (via notify.js) already carry the exact
-// in-app route in n.link — use that first. The chatId/jobId fallbacks below
-// only cover older docs that predate the link field.
 function clickUrlFor(n) {
-  if (n.link) return `/react-migration${n.link}`;
-  if (n.chatId) return `/react-migration/chat`;
-  if (n.jobId) return `/react-migration/jobs`;
+  if (n.convoId) return `/react-migration/?open=chat`;
+  if (n.jobId) return `/react-migration/?open=jobs:${n.jobId}`;
   return `/react-migration/`;
 }
 
@@ -58,8 +44,7 @@ exports.onNotificationCreated = onDocumentCreated(
   'notifications/{notifId}',
   async (event) => {
     const n = event.data.data();
-    if (!n || !n.userId && !n.toUserId) return;
-    const toUserId = n.toUserId || n.userId;
+    if (!n || !n.userId) return;
 
     // Respect chat mute (per-conversation "silent" flag set by the client)
     if (n.silent === true) return;
@@ -68,7 +53,7 @@ exports.onNotificationCreated = onDocumentCreated(
     // writes these under users/{uid}.settings.*, not a top-level notifPrefs
     // field — reading the wrong field used to mean these toggles were fully
     // decorative and never actually stopped a push from going out.
-    const userSnap = await db.collection('users').doc(toUserId).get();
+    const userSnap = await db.collection('users').doc(n.userId).get();
     const userData = userSnap.data();
     if (!userData) return;
 
@@ -97,9 +82,112 @@ exports.onNotificationCreated = onDocumentCreated(
       if (!r.success) badTokens.push(tokens[i]);
     });
     if (badTokens.length) {
-      await db.collection('users').doc(toUserId).update({
+      await db.collection('users').doc(n.userId).update({
         fcmTokens: admin.firestore.FieldValue.arrayRemove(...badTokens),
       });
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// RBAC: Admin role via Firebase Auth Custom Claims
+//
+// Why: Admin.jsx and Settings.jsx used to gate the admin UI on
+// users/{uid}.isAdmin, a plain Firestore field. That field is only as
+// secure as the Firestore rules protecting it -- if a client can ever
+// write it, they can grant themselves admin. Custom claims live on the
+// Auth token itself and can only be set from a trusted server (here,
+// from these Cloud Functions), so Firestore rules can safely check
+// request.auth.token.admin instead of trusting any document field.
+// ---------------------------------------------------------------------------
+
+/**
+ * One-time migration helper: lets a user who is ALREADY marked
+ * isAdmin: true in Firestore (the old, pre-claims trust model) claim
+ * the equivalent admin custom claim on their own account, once.
+ *
+ * This exists only so the very first admin(s) can move over to the
+ * new system without needing Firebase CLI / console access (you're
+ * on mobile). After this, promoting anyone else must go through
+ * setAdminClaim below, which requires the caller to already hold the
+ * admin claim -- so this bootstrap path can't be used to escalate
+ * privileges beyond what Firestore already (supposedly) granted.
+ *
+ * Client usage (call once per legacy admin, then discard):
+ *   const bootstrap = httpsCallable(functions, 'bootstrapAdminClaimFromLegacyFlag');
+ *   await bootstrap();
+ *   await auth.currentUser.getIdToken(true); // force refresh so the new claim is visible
+ */
+exports.bootstrapAdminClaimFromLegacyFlag = onCall(async (request) => {
+  const { auth } = request;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+
+  const userDoc = await db.collection('users').doc(auth.uid).get();
+  const isLegacyAdmin = userDoc.exists && userDoc.data().isAdmin === true;
+
+  if (!isLegacyAdmin) {
+    throw new HttpsError(
+      'permission-denied',
+      'Your account is not marked as admin in the legacy record.'
+    );
+  }
+
+  const authUser = await admin.auth().getUser(auth.uid);
+  const existingClaims = authUser.customClaims || {};
+  await admin.auth().setCustomUserClaims(auth.uid, { ...existingClaims, admin: true });
+
+  return { success: true };
+});
+
+/**
+ * Promote or demote another user's admin status. Only callable by
+ * someone who already holds the admin custom claim (checked from
+ * their verified ID token, not from Firestore).
+ *
+ * Client usage:
+ *   const setAdminClaim = httpsCallable(functions, 'setAdminClaim');
+ *   await setAdminClaim({ targetUid, makeAdmin: true });
+ */
+exports.setAdminClaim = onCall(async (request) => {
+  const { auth, data } = request;
+
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  if (auth.token.admin !== true) {
+    throw new HttpsError('permission-denied', 'Only existing admins can modify admin roles.');
+  }
+
+  const { targetUid, makeAdmin } = data || {};
+  if (typeof targetUid !== 'string' || typeof makeAdmin !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'Expected { targetUid: string, makeAdmin: boolean }.');
+  }
+
+  const targetUser = await admin.auth().getUser(targetUid);
+  const existingClaims = targetUser.customClaims || {};
+  await admin.auth().setCustomUserClaims(targetUid, { ...existingClaims, admin: makeAdmin });
+
+  // Keep the old Firestore field in sync purely for display in the Admin
+  // user list (Admin.jsx reads user.isAdmin to show the ADMIN badge).
+  // This field must never be trusted for access control anymore --
+  // that's what the custom claim + updated rules are for.
+  await db.collection('users').doc(targetUid).set({ isAdmin: makeAdmin }, { merge: true });
+
+  return { success: true, targetUid, admin: makeAdmin };
+});
+
+/**
+ * Lets the client read a user's current claims right after a
+ * promotion/demotion, since ID tokens cache claims client-side until
+ * force-refreshed with getIdToken(true).
+ */
+exports.refreshMyClaims = onCall(async (request) => {
+  const { auth } = request;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  const user = await admin.auth().getUser(auth.uid);
+  return { claims: user.customClaims || {} };
+});
