@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { IconSearch, IconMessage, IconBell, IconMaximize, IconMinimize } from './Icons';
+import { IconSearch, IconMessage, IconBell, IconMaximize, IconMinimize, IconMenu } from './Icons';
 
-export default function TopBar({ profile, unreadNotifications = 0 }) {
+export default function TopBar({ profile, unreadNotifications = 0, onMenuClick }) {
   const { currentUser } = useAuth();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -27,11 +27,14 @@ export default function TopBar({ profile, unreadNotifications = 0 }) {
                  border-b border-slate-800 bg-navy-card/95 px-4 backdrop-blur pt-safe"
       style={{ paddingTop: 'max(10px, env(safe-area-inset-top))', paddingBottom: '10px' }}
     >
-      <Link to="/" className="flex items-center gap-2 shrink-0">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white text-sm font-bold">
-          DH
-        </span>
-        <span className="hidden sm:block font-semibold text-white tracking-tight">DistilleryHub</span>
+      <Link to={`/profile/${currentUser?.uid || ''}`} className="flex items-center gap-2 shrink-0">
+        {profile?.photoURL ? (
+          <img src={profile.photoURL} alt="" className="h-8 w-8 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white text-xs font-semibold">
+            {(profile?.name || '?')[0]?.toUpperCase()}
+          </span>
+        )}
       </Link>
 
       <div className="flex items-center gap-1.5">
@@ -77,15 +80,15 @@ export default function TopBar({ profile, unreadNotifications = 0 }) {
           {isFullscreen ? <IconMinimize className="w-5 h-5" /> : <IconMaximize className="w-5 h-5" />}
         </button>
 
-        <Link to={`/profile/${currentUser?.uid || ''}`} className="ml-1 shrink-0">
-          {profile?.photoURL ? (
-            <img src={profile.photoURL} alt="" className="h-8 w-8 rounded-full object-cover" />
-          ) : (
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-white text-xs font-semibold">
-              {(profile?.name || '?')[0]?.toUpperCase()}
-            </span>
-          )}
-        </Link>
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="ml-1 flex h-9 w-9 items-center justify-center rounded-full text-slate-100
+                     hover:bg-navy-cardAlt transition"
+          aria-label="Menu"
+        >
+          <IconMenu className="w-5 h-5" />
+        </button>
       </div>
     </header>
   );

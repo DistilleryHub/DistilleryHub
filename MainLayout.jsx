@@ -55,13 +55,13 @@ export default function MainLayout({ children }) {
           ⚠️ No internet connection — some actions won't work until you're back online
         </div>
       )}
-      <TopBar profile={currentProfile} unreadNotifications={unreadCount} />
+      <TopBar profile={currentProfile} unreadNotifications={unreadCount} onMenuClick={() => setShowMenu(true)} />
 
       <main className="mx-auto w-full max-w-2xl px-3 pb-24 pt-3 sm:px-4">
         {children}
       </main>
 
-      <BottomNav onMenuClick={() => setShowMenu(true)} />
+      <BottomNav />
 
       {showMenu && (
         <>
