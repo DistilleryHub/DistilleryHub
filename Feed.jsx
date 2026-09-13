@@ -152,9 +152,14 @@ export default function Feed() {
 
   async function toggleLike(post) {
     const liked = post.likes?.includes(currentUser.uid);
-    await updateDoc(doc(db, 'posts', post.id), {
-      likes: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
-    });
+    try {
+      await updateDoc(doc(db, 'posts', post.id), {
+        likes: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+      });
+    } catch (err) {
+      console.error('toggleLike failed', err);
+      toast('Could not update like — check your connection');
+    }
   }
 
   async function sharePost(post) {
@@ -244,8 +249,12 @@ export default function Feed() {
         )}
         <div className="composer-actions">
           <label className="btn btn-ghost btn-sm">
-            Add photo/video
-            <input type="file" accept="image/*,video/*" hidden onChange={handleMediaPick} />
+            📷 Photo
+            <input type="file" accept="image/*" hidden onChange={handleMediaPick} />
+          </label>
+          <label className="btn btn-ghost btn-sm">
+            🎥 Video
+            <input type="file" accept="video/*" hidden onChange={handleMediaPick} />
           </label>
           <button type="submit" className="btn btn-primary btn-sm" disabled={posting || (!text.trim() && !media)}>
             {posting ? <span className="spinner" /> : 'Post'}
