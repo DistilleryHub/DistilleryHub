@@ -7,6 +7,7 @@ import {
 import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { notify } from './notify';
 
 export default function Profile() {
   const { uid } = useParams();
@@ -54,11 +55,14 @@ export default function Profile() {
     await addDoc(collection(db, 'connections'), {
       from: currentUser.uid, to: uid, status: 'pending', createdAt: serverTimestamp(),
     });
-    await addDoc(collection(db, 'notifications'), {
+    notify({
       toUserId: uid,
+      type: 'connection_request',
       message: `${currentProfile?.name || 'Someone'} sent you a connection request`,
-      read: false,
-      createdAt: serverTimestamp(),
+      link: '/network',
+      fromUserId: currentUser.uid,
+      fromUserName: currentProfile?.name || 'Member',
+      fromUserPhoto: currentProfile?.photoURL || '',
     });
     toast('Request sent');
   }

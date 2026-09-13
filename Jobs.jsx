@@ -6,6 +6,7 @@ import {
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { notify } from './notify';
 
 export default function Jobs() {
   const { currentUser, currentProfile } = useAuth();
@@ -50,6 +51,17 @@ export default function Jobs() {
     await updateDoc(doc(db, 'jobs', job.id), {
       applicants: applied ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
     });
+    if (!applied) {
+      notify({
+        toUserId: job.postedBy,
+        type: 'job_application',
+        message: `${currentProfile?.name || 'Someone'} applied to your job "${job.title}"`,
+        link: '/jobs',
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
+      });
+    }
     toast(applied ? 'Application withdrawn' : 'Applied');
   }
 

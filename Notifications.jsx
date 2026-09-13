@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
-  collection, query, where, orderBy, onSnapshot, doc, updateDoc,
+  collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useLanguage } from './LanguageContext';
+import { useToast } from './ToastContext';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -21,6 +22,8 @@ function timeAgo(ts) {
 export default function Notifications() {
   const { currentUser } = useAuth();
   const { t } = useLanguage();
+  const toast = useToast();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
@@ -38,7 +41,63 @@ export default function Notifications() {
 
   async function markRead(n) {
     if (n.read) return;
-    await updateDoc(doc(db, 'notifications', n.id), { read: true });
+    try {
+      await updateDoc(doc(db, 'notifications', n.id), { read: true });
+    } catch (err) {
+      console.error('markRead failed', err);
+    }
+  }
+
+  // Tapping a notification should mark it read AND take you to whatever it's
+  // about — a pending request, a job, a group post, etc. — not just sit there.
+  function openNotification(n) {
+    markRead(n);
+    if (n.link) navigate(n.link);
+  }
+
+  async function deleteOne(e, n) {
+    e.stopPropagation();
+    try {
+      await deleteDoc(doc(db, 'notifications', n.id));
+    } catch (err) {
+      toast(t('toast.settingSaveFail') || 'Could not delete notification');
+    }
+  }
+
+  async function markAllRead() {
+    const unread = notifications.filter((n) => !n.read);
+    if (unread.length === 0) return;
+    try {
+      const batch = writeBatch(db);
+      unread.forEach((n) => batch.update(doc(db, 'notifications', n.id), { read: true }));
+      await batch.commit();
+    } catch (err) {
+      console.error('markAllRead failed', err);
+    }
+  }
+
+  async function clearAll() {
+    if (notifications.length === 0) return;
+    if (!confirm(t('notifications.clearAllConfirm'))) return;
+    try {
+      const batch = writeBatch(db);
+      notifications.forEach((n) => batch.delete(doc(db, 'notifications', n.id)));
+      await batch.commit();
+    } catch (err) {
+      console.error('clearAll failed', err);
+    }
+  }
+
+  async function clearRead() {
+    const read = notifications.filter((n) => n.read);
+    if (read.length === 0) return;
+    try {
+      const batch = writeBatch(db);
+      read.forEach((n) => batch.delete(doc(db, 'notifications', n.id)));
+      await batch.commit();
+    } catch (err) {
+      console.error('clearRead failed', err);
+    }
   }
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -50,6 +109,20 @@ export default function Notifications() {
         {unreadCount > 0 && <span className="badge">{unreadCount} {t('notifications.new')}</span>}
       </div>
 
+      {notifications.length > 0 && (
+        <div className="notifications-toolbar">
+          <button className="btn btn-ghost btn-sm" onClick={markAllRead} disabled={unreadCount === 0}>
+            {t('notifications.markAllRead')}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={clearRead} disabled={notifications.every((n) => !n.read)}>
+            {t('notifications.clearRead')}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={clearAll}>
+            {t('notifications.clearAll')}
+          </button>
+        </div>
+      )}
+
       {notifications.length === 0 && (
         <div className="empty-state">{t('notifications.empty')}</div>
       )}
@@ -60,7 +133,9 @@ export default function Notifications() {
             <div
               className={'notification-row' + (n.read ? '' : ' unread')}
               key={n.id}
-              onClick={() => markRead(n)}
+              onClick={() => openNotification(n)}
+              role="button"
+              tabIndex={0}
             >
               <div className="notification-avatar">
                 {n.fromUserPhoto ? (
@@ -73,12 +148,15 @@ export default function Notifications() {
                 <div className="notification-message">{n.message}</div>
                 <div className="post-time">{timeAgo(n.createdAt)}</div>
               </div>
-              {n.link && (
-                <Link to={n.link} className="btn btn-ghost btn-sm" onClick={(e) => e.stopPropagation()}>
-                  {t('notifications.view')}
-                </Link>
-              )}
               {!n.read && <span className="notification-dot" />}
+              <button
+                className="btn btn-ghost btn-sm notification-delete"
+                onClick={(e) => deleteOne(e, n)}
+                aria-label={t('notifications.delete')}
+                title={t('notifications.delete')}
+              >
+                ✕
+              </button>
             </div>
           ))}
         </div>

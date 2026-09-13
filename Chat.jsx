@@ -7,6 +7,7 @@ import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase'
 import { useAuth } from './AuthContext';
 import { useCall } from './CallContext';
 import { useLanguage } from './LanguageContext';
+import { notify } from './notify';
 
 function chatIdFor(uidA, uidB) {
   return [uidA, uidB].sort().join('_');
@@ -122,7 +123,7 @@ function renderFormattedText(text) {
 }
 
 export default function Chat() {
-  const { currentUser } = useAuth();
+  const { currentUser, currentProfile } = useAuth();
   const { startCall } = useCall();
   const { t } = useLanguage();
   const [people, setPeople] = useState([]);
@@ -263,22 +264,18 @@ export default function Chat() {
 
   async function notifyMentioned(uids, body) {
     const { chatId } = getChatMeta();
+    const senderName = currentProfile?.name || currentUser.displayName || currentUser.email || 'Someone';
     for (const uid of uids) {
-      try {
-        await addDoc(collection(db, 'notifications'), {
-          toUserId: uid,
-          type: 'mention',
-          fromUserId: currentUser.uid,
-          fromUserName: currentUser.displayName || currentUser.email,
-          chatId,
-          groupName: activeChat.chat.name,
-          text: body,
-          read: false,
-          createdAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.error('Failed to notify mentioned user', err);
-      }
+      notify({
+        toUserId: uid,
+        type: 'mention',
+        message: `${senderName} mentioned you in ${activeChat.chat.name}`,
+        link: '/chat',
+        fromUserId: currentUser.uid,
+        fromUserName: senderName,
+        fromUserPhoto: currentProfile?.photoURL || '',
+        extra: { chatId, groupName: activeChat.chat.name },
+      });
     }
   }
 
@@ -470,11 +467,36 @@ export default function Chat() {
         ...(expiresAt ? { expiresAt } : {}),
         ...extra,
       });
+      notifyChatParticipants(participants, body, extra);
     } catch (err) {
       console.error('sendRawMessage failed', err);
       alert('Message send failed: ' + err.code + ' — ' + err.message);
       setText(body);
     }
+  }
+
+  // Notifies everyone else in the chat about a new message — skips the
+  // sender, and skips anyone who has muted this chat (chatMeta.mutedBy).
+  function notifyChatParticipants(participants, body, extra = {}) {
+    const senderName = currentProfile?.name || currentUser.displayName || currentUser.email || 'Someone';
+    const isGroup = activeChat?.type === 'group';
+    const groupName = isGroup ? activeChat.chat.name : '';
+    const mutedBy = chatMeta?.mutedBy || [];
+    const mentioned = extra.mentions || []; // they get a more specific "mentioned you" notification instead
+    const preview = body?.trim() ? body.trim().slice(0, 80) : `[${extra.attachmentType || 'attachment'}]`;
+    (participants || [])
+      .filter((uid) => uid !== currentUser.uid && !mutedBy.includes(uid) && !mentioned.includes(uid))
+      .forEach((uid) => {
+        notify({
+          toUserId: uid,
+          type: 'message',
+          message: isGroup ? `${senderName} in ${groupName}: ${preview}` : `${senderName}: ${preview}`,
+          link: '/chat',
+          fromUserId: currentUser.uid,
+          fromUserName: senderName,
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      });
   }
 
   async function sendMessage(e) {

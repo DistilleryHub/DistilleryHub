@@ -6,6 +6,7 @@ import {
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { notify } from './notify';
 
 export default function Network() {
   const { currentUser, currentProfile } = useAuth();
@@ -41,11 +42,14 @@ export default function Network() {
       await addDoc(collection(db, 'connections'), {
         from: currentUser.uid, to: person.id, status: 'pending', createdAt: serverTimestamp(),
       });
-      await addDoc(collection(db, 'notifications'), {
+      notify({
         toUserId: person.id,
+        type: 'connection_request',
         message: `${currentProfile?.name || 'Someone'} sent you a connection request`,
-        read: false,
-        createdAt: serverTimestamp(),
+        link: '/network',
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
       });
       toast(`Request sent to ${person.name}`);
     } catch (err) {
@@ -57,11 +61,14 @@ export default function Network() {
   async function acceptRequest(conn) {
     try {
       await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
-      await addDoc(collection(db, 'notifications'), {
+      notify({
         toUserId: conn.from,
+        type: 'connection_accept',
         message: `${currentProfile?.name || 'Someone'} accepted your connection request`,
-        read: false,
-        createdAt: serverTimestamp(),
+        link: '/network',
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
       });
       toast('Request accepted');
     } catch (err) {

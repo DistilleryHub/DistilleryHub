@@ -7,6 +7,7 @@ import {
 import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { notify } from './notify';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -19,7 +20,7 @@ function timeAgo(ts) {
   return `${Math.floor(hrs / 24)}d`;
 }
 
-function GroupComments({ groupId, postId, currentUser, currentProfile }) {
+function GroupComments({ groupId, postId, postAuthorId, currentUser, currentProfile }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
 
@@ -42,6 +43,15 @@ function GroupComments({ groupId, postId, currentUser, currentProfile }) {
       authorName: currentProfile?.name || 'Member',
       text: text.trim(),
       createdAt: serverTimestamp(),
+    });
+    notify({
+      toUserId: postAuthorId,
+      type: 'comment',
+      message: `${currentProfile?.name || 'Someone'} commented on your group post`,
+      link: `/groups/${groupId}`,
+      fromUserId: currentUser.uid,
+      fromUserName: currentProfile?.name || 'Member',
+      fromUserPhoto: currentProfile?.photoURL || '',
     });
     setText('');
   }
@@ -113,6 +123,17 @@ export default function GroupDetail() {
     const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
     const existing = userSnap.data()?.groupIds || [];
     await updateDoc(doc(db, 'users', currentUser.uid), { groupIds: [...new Set([...existing, groupId])] });
+    if (group?.createdBy) {
+      notify({
+        toUserId: group.createdBy,
+        type: 'group_add',
+        message: `${currentProfile?.name || 'Someone'} joined your group "${group.name}"`,
+        link: `/groups/${groupId}`,
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
+      });
+    }
     toast('Joined group');
   }
 
@@ -169,6 +190,17 @@ export default function GroupDetail() {
     await updateDoc(doc(db, 'groups', groupId, 'posts', post.id), {
       likes: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
     });
+    if (!liked) {
+      notify({
+        toUserId: post.authorId,
+        type: 'like',
+        message: `${currentProfile?.name || 'Someone'} liked your group post`,
+        link: `/groups/${groupId}`,
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
+      });
+    }
   }
 
   if (!group) return <div className="empty-state">Loading…</div>;
@@ -273,7 +305,7 @@ export default function GroupDetail() {
             </button>
           </div>
           {openComments === post.id && (
-            <GroupComments groupId={groupId} postId={post.id} currentUser={currentUser} currentProfile={currentProfile} />
+            <GroupComments groupId={groupId} postId={post.id} postAuthorId={post.authorId} currentUser={currentUser} currentProfile={currentProfile} />
           )}
         </div>
       ))}

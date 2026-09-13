@@ -7,6 +7,7 @@ import {
 import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { notify } from './notify';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -21,7 +22,7 @@ function timeAgo(ts) {
   return ts.toDate().toLocaleDateString();
 }
 
-function Comments({ postId, currentUser, currentProfile }) {
+function Comments({ postId, postAuthorId, currentUser, currentProfile }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
 
@@ -41,6 +42,15 @@ function Comments({ postId, currentUser, currentProfile }) {
       authorName: currentProfile?.name || 'Member',
       text: text.trim(),
       createdAt: serverTimestamp(),
+    });
+    notify({
+      toUserId: postAuthorId,
+      type: 'comment',
+      message: `${currentProfile?.name || 'Someone'} commented on your post`,
+      link: '/',
+      fromUserId: currentUser.uid,
+      fromUserName: currentProfile?.name || 'Member',
+      fromUserPhoto: currentProfile?.photoURL || '',
     });
     setText('');
   }
@@ -173,6 +183,17 @@ export default function Feed() {
       await updateDoc(doc(db, 'posts', post.id), {
         likes: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
       });
+      if (!liked) {
+        notify({
+          toUserId: post.authorId,
+          type: 'like',
+          message: `${currentProfile?.name || 'Someone'} liked your post`,
+          link: '/',
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
     } catch (err) {
       console.error('toggleLike failed', err);
       toast('Could not update like — check your connection');
@@ -349,7 +370,7 @@ export default function Feed() {
             )}
           </div>
           {openComments === post.id && (
-            <Comments postId={post.id} currentUser={currentUser} currentProfile={currentProfile} />
+            <Comments postId={post.id} postAuthorId={post.authorId} currentUser={currentUser} currentProfile={currentProfile} />
           )}
         </div>
       ))}

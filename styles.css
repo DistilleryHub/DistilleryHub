@@ -379,10 +379,13 @@ input::placeholder, textarea::placeholder { color: var(--muted-2); }
 .notification-message { font-size: 14px; color: var(--text); line-height: 1.4; }
 .notification-row.unread .notification-message { font-weight: 600; }
 .notification-dot {
-  position: absolute; top: 18px; right: 16px;
+  position: absolute; top: 18px; right: 44px;
   width: 8px; height: 8px; border-radius: 50%; background: var(--primary);
 }
 .notification-row .btn { flex-shrink: 0; margin-top: 2px; }
+.notifications-toolbar { display: flex; gap: 8px; padding: 0 16px 10px; flex-wrap: wrap; }
+.notification-delete { opacity: 0.6; }
+.notification-delete:hover { opacity: 1; }
 
 /* ===== Status / Stories ===== */
 .status-bar { display: flex; gap: 14px; overflow-x: auto; padding: 10px 2px; scrollbar-width: none; }

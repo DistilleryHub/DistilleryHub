@@ -141,6 +141,11 @@ const en = {
   'notifications.new': 'new',
   'notifications.empty': "You're all caught up — no notifications yet.",
   'notifications.view': 'View',
+  'notifications.markAllRead': 'Mark all read',
+  'notifications.clearRead': 'Clear read',
+  'notifications.clearAll': 'Clear all',
+  'notifications.clearAllConfirm': 'Clear all notifications? This cannot be undone.',
+  'notifications.delete': 'Delete',
 
   // ----- Chat -----
   'chat.back': 'Back',
@@ -285,6 +290,11 @@ const hi = {
   'notifications.new': 'नई',
   'notifications.empty': 'अभी कोई सूचना नहीं है।',
   'notifications.view': 'देखें',
+  'notifications.markAllRead': 'सभी पढ़ा हुआ करें',
+  'notifications.clearRead': 'पढ़ी हुई हटाएं',
+  'notifications.clearAll': 'सभी हटाएं',
+  'notifications.clearAllConfirm': 'सभी सूचनाएं हटानी हैं? यह वापस नहीं होगा।',
+  'notifications.delete': 'हटाएं',
 
   'chat.back': 'वापस',
   'chat.searchInChat': 'चैट में खोजें',

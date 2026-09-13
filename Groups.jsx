@@ -7,6 +7,7 @@ import {
 import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { notify } from './notify';
 
 const CATEGORIES = [
   'Fermentation', 'Distillation', 'Plant Operations', 'Quality & Lab',
@@ -102,6 +103,18 @@ export default function Groups() {
     await updateDoc(doc(db, 'users', currentUser.uid), {
       groupIds: [...myGroupIds, groupId],
     });
+    const group = groups.find((g) => g.id === groupId);
+    if (!opts.silent && group?.createdBy) {
+      notify({
+        toUserId: group.createdBy,
+        type: 'group_add',
+        message: `${currentProfile?.name || 'Someone'} joined your group "${group.name}"`,
+        link: `/groups/${groupId}`,
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
+      });
+    }
     if (!opts.silent) toast('Joined group');
   }
 

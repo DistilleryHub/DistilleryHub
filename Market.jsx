@@ -6,6 +6,7 @@ import {
 import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { notify } from './notify';
 
 const RFQ_CATEGORIES = [
   'Raw Materials', 'Equipment & Machinery', 'Spares & Parts',
@@ -61,11 +62,14 @@ function RfqBids({ rfq, currentUser, currentProfile, toast }) {
         accepted: false,
         createdAt: serverTimestamp(),
       });
-      await addDoc(collection(db, 'notifications'), {
+      notify({
         toUserId: rfq.buyerId,
+        type: 'rfq_quote',
         message: `${currentProfile?.name || 'Someone'} submitted a quote for "${rfq.title}"`,
-        read: false,
-        createdAt: serverTimestamp(),
+        link: '/market',
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
       });
       setPrice(''); setMessage('');
       toast('Quote submitted');
@@ -79,11 +83,14 @@ function RfqBids({ rfq, currentUser, currentProfile, toast }) {
     if (!isBuyer) return;
     await updateDoc(doc(db, 'rfqs', rfq.id, 'bids', bid.id), { accepted: true });
     await updateDoc(doc(db, 'rfqs', rfq.id), { status: 'closed', acceptedBidId: bid.id });
-    await addDoc(collection(db, 'notifications'), {
+    notify({
       toUserId: bid.sellerId,
+      type: 'rfq_accepted',
       message: `Your quote for "${rfq.title}" was accepted`,
-      read: false,
-      createdAt: serverTimestamp(),
+      link: '/market',
+      fromUserId: currentUser.uid,
+      fromUserName: currentProfile?.name || 'Member',
+      fromUserPhoto: currentProfile?.photoURL || '',
     });
     toast('Quote accepted');
   }
