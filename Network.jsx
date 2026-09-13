@@ -37,26 +37,37 @@ export default function Network() {
   }
 
   async function sendRequest(person) {
-    await addDoc(collection(db, 'connections'), {
-      from: currentUser.uid, to: person.id, status: 'pending', createdAt: serverTimestamp(),
-    });
-    await addDoc(collection(db, 'notifications'), {
-      toUserId: person.id,
-      message: `${currentProfile?.name || 'Someone'} sent you a connection request`,
-      read: false,
-      createdAt: serverTimestamp(),
-    });
-    toast(`Request sent to ${person.name}`);
+    try {
+      await addDoc(collection(db, 'connections'), {
+        from: currentUser.uid, to: person.id, status: 'pending', createdAt: serverTimestamp(),
+      });
+      await addDoc(collection(db, 'notifications'), {
+        toUserId: person.id,
+        message: `${currentProfile?.name || 'Someone'} sent you a connection request`,
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+      toast(`Request sent to ${person.name}`);
+    } catch (err) {
+      console.error('sendRequest failed', err);
+      toast('Could not send request — check your connection and try again');
+    }
   }
 
   async function acceptRequest(conn) {
-    await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
-    await addDoc(collection(db, 'notifications'), {
-      toUserId: conn.from,
-      message: `${currentProfile?.name || 'Someone'} accepted your connection request`,
-      read: false,
-      createdAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
+      await addDoc(collection(db, 'notifications'), {
+        toUserId: conn.from,
+        message: `${currentProfile?.name || 'Someone'} accepted your connection request`,
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+      toast('Request accepted');
+    } catch (err) {
+      console.error('acceptRequest failed', err);
+      toast('Could not accept request — check your connection and try again');
+    }
   }
 
   const visiblePeople = useMemo(() => {
