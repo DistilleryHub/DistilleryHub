@@ -6,10 +6,9 @@ const crypto = require('crypto');
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-// ⚠️ Yahan apna Gmail email aur App Password daalo (Step 0 wala 16-digit code)
-const GMAIL_EMAIL = 'tumhara-email@gmail.com';
-const GMAIL_APP_PASSWORD = 'xxxx xxxx xxxx xxxx';
-const APP_URL = 'https://distilleryhub.github.io/react-migration'; // apna deployed URL daalo
+const GMAIL_EMAIL = 'thedistillerymaster@gmail.com';
+const GMAIL_APP_PASSWORD = 'whcefescunrxrmpa';
+const APP_URL = 'https://distilleryhub.github.io/react-migration';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
