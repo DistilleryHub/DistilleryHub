@@ -1,8 +1,6 @@
 # DistilleryHub — React Migration (Phase 0: Setup)
 
-Ye purane `index.html` (5000+ lines, vanilla JS) app ka **React + Vite** skeleton hai.
-Abhi sirf structure/navigation ready hai — har feature page ek placeholder hai jo
-apne apne phase me migrate hoga.
+Ye purane `index.html` (5000+ lines, vanilla JS) app ka **React + Vite** skeleton hai. Ab sirf structure/navigation ready hai — har feature page ek placeholder hai jo apne apne phase mein migrate hoga.
 
 ## Migration plan
 
@@ -12,67 +10,37 @@ apne apne phase me migrate hoga.
 - **Phase 3** — Jobs, Articles, Marketplace, Videos, Files, Learning, Notifications
 - **Phase 4** — Chat/Messaging, WebRTC audio-video calls, Admin reports
 
-Har phase alag se, chhote steps me karenge — taaki purana app tab tak live rahe.
+Har phase alag se, chhote steps mein karenge — taaki purana app tab tak live rahe.
 
 ## Local me chalane ke liye
 
 Node.js (v18+) installed hona chahiye. Phir:
-
-```bash
-npm install
-npm run dev
-```
-
-Ye local dev server chalu karega (usually `http://localhost:5173`) jaha browser me
-live changes dikhenge.
+Ye local dev server chalu karega (usually http://localhost:5173) jaha browser me live changes dikhenge.
 
 ## Production build
-
-```bash
-npm run build
-```
-
 Isse `dist/` folder banega jisme final static files hongi.
 
 ## GitHub Pages par deploy
 
-`.github/workflows/deploy.yml` already set up hai — jab bhi `main` branch pe push
-karoge, GitHub Actions automatically build karke Pages par deploy kar dega.
+`.github/workflows/deploy.yml` already setup hai — jab bhi `main` branch par push karoge, GitHub Actions automatically build karke Pages par deploy kar dega.
 
-**Ek baar ka setup GitHub par:**
+Ek baar ka setup GitHub par:
 1. Repo → Settings → Pages
-2. "Build and deployment" → Source → **GitHub Actions** select karo (Branch wala
-   option nahi)
+2. "Build and deployment" → Source → **GitHub Actions** select karo (Branch wala option nahi)
 
-**Important — base path check karo:**
-`vite.config.js` me `base: '/'` set hai. Agar aapki site
-`https://<username>.github.io/DistilleryHub/` jaisi URL (project page) pe hai,
-to `base` ko `/DistilleryHub/` karna hoga. Agar custom domain hai ya
-`<username>.github.io` naam wala hi repo hai, to `/` hi sahi hai.
+**Important — base path check karo:** `vite.config.js` me `base: '/'` set hai. Agar aapki site `https://username.github.io/distilleryhub/` jaisi URL (project page) pe hai to `/distilleryhub/` karna hoga. Agar custom domain hai ya `<username>.github.io` naam wala hi repo hai, to `/` hi sahi hai.
 
 ## Firebase
 
-`src/firebase.js` me wahi config hai jo purane `index.html` me tha — kuch change
-nahi kiya gaya. Isi file se `auth`, `db`, `storage` poore app me import honge.
+`src/firebase.js` me wahi config hai jo purane `index.html` me tha — kuch change nahi kiya gaya. Isi liye `auth`, `db`, `storage` poore app me import honge.
 
 ## File structure
+## Progress
 
-```
-src/
-  main.jsx          → entry point
-  App.jsx           → sidebar + routing (sab pages yahan register hote hain)
-  firebase.js        → Firebase init (shared)
-  styles.css         → purana design system (colors/fonts) + naya layout CSS
-  pages/
-    Feed.jsx, Auth.jsx, Network.jsx, Jobs.jsx, Articles.jsx,
-    Status.jsx, Market.jsx, Videos.jsx, FilesPage.jsx,
-    Learning.jsx, Notifications.jsx, Chat.jsx, Admin.jsx
-```
-
-Agle step (Phase 1) me hum `Auth.jsx` ko real login/signup se bharenge.
- 
 - **Phase 0** — Project setup ✅
 - **Phase 1** — Auth ✅
 - **Phase 2** — Feed, Network/Connections ✅
-- **Phase 3** — Jobs, Articles, Marketplace, Videos, Files, Learning, Notifications
-- **Phase 4** — Chat/Messaging, WebRTC, Admin
+- **Phase 3** — Jobs, Articles, Marketplace, Videos, Files, Learning, Notifications ✅
+- **Phase 4** — Chat/Messaging, WebRTC, Admin ✅
+
+Sab phases migrate ho chuke hain 🎉
