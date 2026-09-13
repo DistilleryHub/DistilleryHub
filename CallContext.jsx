@@ -10,6 +10,15 @@ import { startRingback, startRingtone } from './callSounds';
 const CallContext = createContext(null);
 export function useCall() { return useContext(CallContext); }
 
+// Explicit audio constraints — don't rely on the browser/WebView's default,
+// since defaults vary across devices and inside a Play Store TWA wrapper.
+// This is on top of the double-audio-playback fix in CallScreen.jsx.
+const AUDIO_CONSTRAINTS = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -251,7 +260,7 @@ export function CallProvider({ children }) {
     if (!currentUser) return;
     const allParticipants = [...new Set([currentUser.uid, ...participantUids])];
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: AUDIO_CONSTRAINTS,
       video: callType === 'video' ? { facingMode } : false,
     });
     localStreamRef.current = stream;
@@ -280,7 +289,7 @@ export function CallProvider({ children }) {
     if (ringtoneStopRef.current) { ringtoneStopRef.current(); ringtoneStopRef.current = null; }
 
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: AUDIO_CONSTRAINTS,
       video: call.callType === 'video' ? { facingMode } : false,
     });
     localStreamRef.current = stream;
@@ -402,4 +411,4 @@ export function CallProvider({ children }) {
       {children}
     </CallContext.Provider>
   );
-}
+                  }
