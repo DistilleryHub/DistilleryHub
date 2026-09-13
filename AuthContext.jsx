@@ -3,14 +3,18 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
   sendPasswordResetEmail,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import bcrypt from 'bcryptjs';
+import { auth, db, functions } from './firebase';
 
 const AuthContext = createContext(null);
 const googleProvider = new GoogleAuthProvider();
@@ -18,7 +22,6 @@ const googleProvider = new GoogleAuthProvider();
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentProfile, setCurrentProfile] = useState(null);
-  // authLoading = still waiting to hear from Firebase on first load.
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +35,6 @@ export function AuthProvider({ children }) {
     return unsub;
   }, []);
 
-  // Live profile doc so header/sidebar reflect edits instantly.
   useEffect(() => {
     if (!currentUser) return;
     const unsub = onSnapshot(doc(db, 'users', currentUser.uid), (snap) => {
@@ -42,17 +44,31 @@ export function AuthProvider({ children }) {
     return unsub;
   }, [currentUser]);
 
-  async function signup({ name, headline, email, password }) {
+  // Naya signup: name, mobile, email, password, mpin sab ek saath
+  async function signup({ name, headline, mobile, email, password, mpin }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
+
+    const mpinHash = mpin ? bcrypt.hashSync(mpin, 10) : '';
+
     await setDoc(doc(db, 'users', cred.user.uid), {
-      name, headline, company: '', location: '', bio: '', photoURL: '',
+      name, headline: headline || '', company: '', location: '', bio: '', photoURL: '',
+      mobile: mobile || '', mpinHash,
       blocked: [], isAdmin: false, createdAt: serverTimestamp(),
     });
+
+    await sendEmailVerification(cred.user);
   }
 
   async function signin({ email, password }) {
     await signInWithEmailAndPassword(auth, email, password);
+  }
+
+  // Naya: Mobile + MPIN se login
+  async function signinWithMpin({ mobile, mpin }) {
+    const mpinLogin = httpsCallable(functions, 'mpinLogin');
+    const result = await mpinLogin({ mobile, mpin });
+    await signInWithCustomToken(auth, result.data.token);
   }
 
   async function googleSignIn() {
@@ -61,8 +77,8 @@ export function AuthProvider({ children }) {
     if (!snap.exists()) {
       await setDoc(doc(db, 'users', cred.user.uid), {
         name: cred.user.displayName || 'Member', headline: '', company: '',
-        photoURL: cred.user.photoURL || '', blocked: [], isAdmin: false,
-        createdAt: serverTimestamp(),
+        photoURL: cred.user.photoURL || '', mobile: '', mpinHash: '',
+        blocked: [], isAdmin: false, createdAt: serverTimestamp(),
       });
     }
   }
@@ -77,7 +93,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     currentUser, currentProfile, authLoading,
-    signup, signin, googleSignIn, forgotPassword, logout,
+    signup, signin, signinWithMpin, googleSignIn, forgotPassword, logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
