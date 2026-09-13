@@ -5,17 +5,16 @@ admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
 
-// Maps a notification's "type" to the matching key in users/{uid}.notifPrefs
+// Maps a notification's "type" to the matching Settings.jsx toggle field
+// (nested under users/{uid}.settings.*). Types with no dedicated toggle in
+// the UI (like, comment, connection_request/accept) always send — same as
+// before, just documented instead of accidentally falling through.
 const PREF_KEY_MAP = {
-  like: 'like',
-  comment: 'comment',
-  connection_request: 'connection',
-  connection_accept: 'connection',
-  message: 'message',
-  mention: 'mention',
-  group_add: 'group_add',
-  group_call: 'group_call',
-  job_application: 'job_application',
+  message: 'notifyChatMessages',
+  mention: 'notifyChatMessages',
+  group_add: 'notifyChatMessages',
+  group_call: 'notifyChatMessages',
+  job_application: 'notifyJobAlerts',
 };
 
 function buildNotifText(n) {
@@ -49,13 +48,19 @@ exports.onNotificationCreated = onDocumentCreated(
     // Respect chat mute (per-conversation "silent" flag set by the client)
     if (n.silent === true) return;
 
-    // Respect the recipient's per-type notification toggle (default true)
+    // Respect the recipient's notification settings. The client (Settings.jsx)
+    // writes these under users/{uid}.settings.*, not a top-level notifPrefs
+    // field — reading the wrong field used to mean these toggles were fully
+    // decorative and never actually stopped a push from going out.
     const userSnap = await db.collection('users').doc(n.userId).get();
     const userData = userSnap.data();
     if (!userData) return;
 
+    const prefs = userData.settings || {};
+    if (prefs.notifyPush === false) return; // user turned off push entirely
+
     const prefKey = PREF_KEY_MAP[n.type];
-    if (prefKey && userData.notifPrefs && userData.notifPrefs[prefKey] === false) return;
+    if (prefKey && prefs[prefKey] === false) return;
 
     const tokens = userData.fcmTokens || [];
     if (!tokens.length) return;
