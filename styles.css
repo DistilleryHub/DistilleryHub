@@ -1142,3 +1142,39 @@ input::placeholder, textarea::placeholder { color: var(--muted-2); }
 .group-member-row .member-meta { color: var(--muted); font-size: 12px; }
 
 .group-settings-empty { color: var(--muted); font-size: 13px; }
+
+/* ===== Global contrast safety net (works across ALL themes) =====
+   Forces titles/labels to always use --text and secondary text to
+   always use --muted, regardless of any conflicting inline/utility
+   class. Placed last so it wins by source order; !important guards
+   against Tailwind or stray styles silently overriding these. */
+h1, h2, h3, h4,
+.settings-menu-row-title,
+.settings-toggle-label,
+.settings-field span,
+.listing-title,
+.job-title,
+.article-title,
+.person-name,
+.notification-message,
+.rfq-bid-seller,
+.file-name,
+.group-card-name {
+  color: var(--text) !important;
+}
+
+.listing-description,
+.job-description,
+.article-excerpt,
+.job-meta,
+.listing-seller,
+.person-headline,
+.person-company,
+.settings-toggle-hint,
+.post-author-headline,
+.post-time,
+.rfq-bid-message,
+.file-info,
+.empty-state {
+  color: var(--muted) !important;
+}
