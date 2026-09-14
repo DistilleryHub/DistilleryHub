@@ -24,6 +24,7 @@ import Search from './Search.jsx';
 import Settings from './Settings.jsx';
 import Groups from './Groups.jsx';
 import GroupDetail from './GroupDetail.jsx';
+import Bookmarks from './Bookmarks.jsx';
 
 function RequireAuth({ children }) {
   const { currentUser } = useAuth();
@@ -75,6 +76,7 @@ export default function App() {
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/profile/:uid" element={<Profile />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/bookmarks" element={<Bookmarks />} />
                 </Routes>
               </MainLayout>
               <CallScreen />
