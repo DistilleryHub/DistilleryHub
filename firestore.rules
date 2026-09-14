@@ -44,6 +44,11 @@ service cloud.firestore {
         request.resource.data.blocked == resource.data.blocked
         || isAdmin();
       allow delete: if isAdmin();
+
+      // Saved posts/jobs/articles — private to the owner only.
+      match /bookmarks/{bookmarkId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ===== Posts (feed) =====
@@ -184,7 +189,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.postedBy == request.auth.uid || isAdmin();
     }
-match /articles/{articleId} {
+    match /articles/{articleId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
       allow update: if isSignedIn() &&
@@ -195,8 +200,7 @@ match /articles/{articleId} {
             == [request.auth.uid].toSet()) ||
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount']));
       allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
- 
-}
+
       match /comments/{commentId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
