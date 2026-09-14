@@ -7,6 +7,7 @@ import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
+import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 
 export default function Jobs() {
   const { currentUser, currentProfile } = useAuth();
@@ -16,6 +17,12 @@ export default function Jobs() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', company: '', location: '', description: '' });
   const [saving, setSaving] = useState(false);
+  const [bookmarkIds, setBookmarkIds] = useState(new Set());
+
+  useEffect(() => {
+    if (!currentUser) return;
+    return listenBookmarks(currentUser.uid, (list) => setBookmarkIds(new Set(list.map((b) => b.id))));
+  }, [currentUser]);
 
   useEffect(() => {
     const q = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'));
@@ -130,19 +137,34 @@ export default function Jobs() {
             {job.description && <p className="job-description">{job.description}</p>}
             <div className="job-footer">
               <span className="job-posted-by">Posted by {job.postedByName}</span>
-              {job.postedBy === currentUser.uid ? (
-                <div className="job-actions">
-                  <span className="job-applicants">{job.applicants?.length || 0} applicants</span>
-                  <button className="btn btn-ghost btn-sm" onClick={() => removeJob(job)}>Delete</button>
-                </div>
-              ) : (
+              <div className="job-actions">
                 <button
-                  className={'btn btn-sm ' + (applied ? 'btn-ghost' : 'btn-primary')}
-                  onClick={() => toggleApply(job)}
+                  className={'btn btn-ghost btn-sm' + (bookmarkIds.has(bookmarkDocId('job', job.id)) ? ' active' : '')}
+                  onClick={() => toggleBookmark(currentUser.uid, bookmarkIds.has(bookmarkDocId('job', job.id)), {
+                    type: 'job',
+                    itemId: job.id,
+                    title: job.title,
+                    snippet: job.company + (job.location ? ` • ${job.location}` : ''),
+                    imageURL: '',
+                    link: '/jobs',
+                  })}
                 >
-                  {applied ? 'Applied ✓' : 'Apply'}
+                  {bookmarkIds.has(bookmarkDocId('job', job.id)) ? '🔖 Saved' : '🔖 Save'}
                 </button>
-              )}
+                {job.postedBy === currentUser.uid ? (
+                  <>
+                    <span className="job-applicants">{job.applicants?.length || 0} applicants</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => removeJob(job)}>Delete</button>
+                  </>
+                ) : (
+                  <button
+                    className={'btn btn-sm ' + (applied ? 'btn-ghost' : 'btn-primary')}
+                    onClick={() => toggleApply(job)}
+                  >
+                    {applied ? 'Applied ✓' : 'Apply'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
