@@ -184,10 +184,25 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.postedBy == request.auth.uid || isAdmin();
     }
-    match /articles/{articleId} {
+match /articles/{articleId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+      allow update: if isSignedIn() &&
+        (resource.data.authorId == request.auth.uid || isAdmin() ||
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) &&
+          request.resource.data.likes.toSet().difference(resource.data.likes.toSet())
+            .union(resource.data.likes.toSet().difference(request.resource.data.likes.toSet()))
+            == [request.auth.uid].toSet()) ||
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount']));
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+ 
+}
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+        allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+        allow update: if false;
+      }
     }
     match /courses/{courseId} {
       allow read: if isSignedIn();
