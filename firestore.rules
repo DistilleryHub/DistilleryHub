@@ -3,204 +3,206 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------- Helpers ----------
     function isSignedIn() {
       return request.auth != null;
     }
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
-    // Admin is decided ONLY by the verified custom claim (see
-    // functions/index.js: setAdminClaim / bootstrapAdminClaimFromLegacyFlag).
-    // Never trust users/{uid}.isAdmin for authorization -- that field is
-    // kept only for display in the Admin user list.
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    function isGroupMember(groupId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
     }
 
-    // ---------- users/{uid} ----------
-    match /users/{uid} {
+    // ===== Users =====
+    match /users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isOwner(uid);
-      // Users can edit their own profile, but never their own isAdmin /
-      // disabled / isVerified flags -- those are admin-controlled.
-      allow update: if isOwner(uid) &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['isAdmin', 'disabled', 'isVerified']);
-      allow update: if isAdmin(); // admins can set isAdmin/disabled/isVerified etc.
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) &&
+        request.resource.data.isAdmin == resource.data.isAdmin &&
+        request.resource.data.blocked == resource.data.blocked
+        || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // ---------- posts/{postId} (Feed) ----------
+    // ===== Posts (feed) =====
     match /posts/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isOwner(resource.data.authorId) || isAdmin() ||
-        // allow like-toggle style updates from any signed-in user without
-        // letting them edit anything else on the post
-        (isSignedIn() && request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly(['likes', 'likeCount']));
-      allow delete: if isOwner(resource.data.authorId) || isAdmin();
+      allow update: if isSignedIn() &&
+        (resource.data.authorId == request.auth.uid ||
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likeCount']) &&
+          request.resource.data.likes.toSet().difference(resource.data.likes.toSet())
+            .union(resource.data.likes.toSet().difference(request.resource.data.likes.toSet()))
+            == [request.auth.uid].toSet()));
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
 
       match /comments/{commentId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-        allow delete: if isOwner(resource.data.authorId) || isAdmin();
+        allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+        allow update: if false;
       }
     }
 
-    // ---------- articles / videos / statuses (same authorId ownership shape) ----------
-    match /articles/{docId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.authorId) || isAdmin();
-    }
-    match /videos/{docId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.authorId) || isAdmin();
-    }
+    // ===== Status / stories =====
     match /statuses/{statusId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.authorId) || isAdmin();
+      allow update: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
 
-      match /views/{viewerUid} {
-        allow read: if isOwner(get(/databases/$(database)/documents/statuses/$(statusId)).data.authorId) || isAdmin();
-        allow create: if isOwner(viewerUid);
+      match /views/{viewId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.viewerId == request.auth.uid;
+        allow update, delete: if false;
       }
     }
 
-    // ---------- connections/{connectionId} (Network) ----------
-    match /connections/{connectionId} {
+    // ===== Connections (network) =====
+    match /connections/{connId} {
       allow read: if isSignedIn() &&
-        request.auth.uid in [resource.data.from, resource.data.to];
+        (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.from == request.auth.uid;
       allow update: if isSignedIn() &&
-        request.auth.uid in [resource.data.from, resource.data.to];
+        (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
       allow delete: if isSignedIn() &&
-        request.auth.uid in [resource.data.from, resource.data.to];
+        (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
     }
 
-    // ---------- chats/{chatId} + messages ----------
+    // ===== Chats + messages =====
     match /chats/{chatId} {
       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
-      allow delete: if isAdmin();
+      allow delete: if false;
 
       match /messages/{messageId} {
         allow read: if isSignedIn() &&
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
         allow create: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
-          request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if isOwner(resource.data.senderId) || isAdmin();
+          request.resource.data.senderId == request.auth.uid &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow update: if isSignedIn() && resource.data.senderId == request.auth.uid;
+        allow delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
       }
     }
 
-    // ---------- jobs/{jobId} ----------
-    match /jobs/{jobId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.postedBy) || isAdmin();
+    // ===== Scheduled messages =====
+    match /scheduledMessages/{msgId} {
+      allow read, update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
     }
 
-    // ---------- listings/{listingId} (Market) ----------
-    match /listings/{listingId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.sellerId) || isAdmin();
-    }
+    // ===== Calls + signaling =====
+    match /calls/{callId} {
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      allow delete: if isSignedIn() && request.auth.uid in resource.data.participants;
 
-    // ---------- rfqs/{rfqId} + bids (Market) ----------
-    match /rfqs/{rfqId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.buyerId) || isAdmin();
-
-      match /bids/{bidId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update, delete: if isAdmin();
+      match /signals/{signalId} {
+        allow read, create: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/calls/$(callId)).data.participants;
+        allow update, delete: if false;
       }
     }
 
-    // ---------- groups/{groupId} + members + posts + comments ----------
+    // ===== Groups =====
     match /groups/{groupId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isOwner(resource.data.createdBy) || isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isSignedIn() &&
+        (resource.data.createdBy == request.auth.uid || isGroupMember(groupId)) || isAdmin();
+      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid || isAdmin();
 
-      match /members/{memberUid} {
+      match /members/{memberId} {
         allow read: if isSignedIn();
-        allow create, update: if isOwner(memberUid);
-        allow delete: if isOwner(memberUid) || isAdmin();
+        allow create: if isSignedIn() && request.auth.uid == memberId;
+        allow delete: if isSignedIn() &&
+          (request.auth.uid == memberId ||
+           get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid);
+        allow update: if false;
       }
 
       match /posts/{postId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-        allow update, delete: if isOwner(resource.data.authorId) || isAdmin();
+        allow update: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+        allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
 
         match /comments/{commentId} {
           allow read: if isSignedIn();
           allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-          allow delete: if isOwner(resource.data.authorId) || isAdmin();
+          allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+          allow update: if false;
         }
       }
     }
 
-    // ---------- courses/{courseId} (Learning) ----------
+    // ===== Jobs / Articles / Courses / Videos / Files (read-open, owner-write) =====
+    match /jobs/{jobId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.postedBy == request.auth.uid || isAdmin();
+    }
+    match /articles/{articleId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+    }
     match /courses/{courseId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
-
-    // ---------- files/{fileId} (FilesPage metadata) ----------
+    match /videos/{videoId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+    }
     match /files/{fileId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.ownerId) || isAdmin();
+      allow create: if isSignedIn() && request.resource.data.uploadedBy == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.uploadedBy == request.auth.uid || isAdmin();
     }
 
-    // ---------- notifications/{notifId} ----------
-    match /notifications/{notifId} {
-      allow read, update: if isOwner(resource.data.userId);
-      allow create: if isSignedIn(); // written on behalf of other users' actions
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
-    }
-
-    // ---------- calls/{callId} (WebRTC signaling) ----------
-    match /calls/{callId} {
-      allow read, update: if isSignedIn() &&
-        request.auth.uid in [resource.data.callerId, resource.data.calleeId];
-      allow create: if isSignedIn() && request.resource.data.callerId == request.auth.uid;
-      allow delete: if isSignedIn() &&
-        request.auth.uid in [resource.data.callerId, resource.data.calleeId];
-    }
-
-    // ---------- scheduledMessages/{id} ----------
-    match /scheduledMessages/{id} {
-      allow read, update, delete: if isOwner(resource.data.senderId) || isAdmin();
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-    }
-
-    // ---------- presence/{uid} ----------
-    match /presence/{uid} {
+    // ===== Marketplace: listings + RFQs/bids =====
+    match /listings/{listingId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(uid);
+      allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid || isAdmin();
+    }
+    match /rfqs/{rfqId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.buyerId == request.auth.uid || isAdmin();
+      allow delete: if isSignedIn() && resource.data.buyerId == request.auth.uid || isAdmin();
+
+      match /bids/{bidId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow update: if isSignedIn() &&
+          (resource.data.sellerId == request.auth.uid ||
+           get(/databases/$(database)/documents/rfqs/$(rfqId)).data.buyerId == request.auth.uid);
+        allow delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+      }
     }
 
-    // ---------- reports/{reportId} (Admin dashboard, admin-only) ----------
+    // ===== Notifications (only the recipient can read/ack) =====
+    match /notifications/{notifId} {
+      allow read, update: if isSignedIn() && resource.data.toUserId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.toUserId is string &&
+        request.resource.data.toUserId != request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.toUserId == request.auth.uid;
+    }
+
+    // ===== Reports (users file, only admins read/manage) =====
     match /reports/{reportId} {
-      allow create: if isSignedIn(); // any user can file a report
+      allow create: if isSignedIn() && request.resource.data.reportedBy == request.auth.uid;
       allow read, update, delete: if isAdmin();
-    }
-
-    // Default deny for anything not explicitly matched above
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }
