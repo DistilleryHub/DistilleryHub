@@ -13,7 +13,6 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import bcrypt from 'bcryptjs';
 import { auth, db, functions } from './firebase';
 
 const AuthContext = createContext(null);
@@ -71,13 +70,20 @@ export function AuthProvider({ children }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
 
-    const mpinHash = mpin ? bcrypt.hashSync(mpin, 10) : '';
-
+    // NOTE: mpinHash is intentionally NOT stored here. users/{uid} is
+    // readable by any signed-in user (see firestore.rules), so the MPIN
+    // hash must never live on this doc. It's hashed and stored server-side
+    // in the protected userSecrets/{uid} collection via setMpin below.
     await setDoc(doc(db, 'users', cred.user.uid), {
       name, headline: headline || '', company: '', location: '', bio: '', photoURL: '',
-      mobile: mobile || '', mpinHash,
+      mobile: mobile || '',
       blocked: [], isAdmin: false, createdAt: serverTimestamp(),
     });
+
+    if (mpin) {
+      const setMpinFn = httpsCallable(functions, 'setMpin');
+      await setMpinFn({ mpin });
+    }
 
     await sendEmailVerification(cred.user);
   }
@@ -99,7 +105,7 @@ export function AuthProvider({ children }) {
     if (!snap.exists()) {
       await setDoc(doc(db, 'users', cred.user.uid), {
         name: cred.user.displayName || 'Member', headline: '', company: '',
-        photoURL: cred.user.photoURL || '', mobile: '', mpinHash: '',
+        photoURL: cred.user.photoURL || '', mobile: '',
         blocked: [], isAdmin: false, createdAt: serverTimestamp(),
       });
     }

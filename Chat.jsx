@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   collection, query, where, orderBy, onSnapshot, addDoc, doc, setDoc, updateDoc,
   deleteDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove,
+  limit, getDocs,
 } from 'firebase/firestore';
 import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
 import { useAuth } from './AuthContext';
@@ -84,6 +85,7 @@ const WALLPAPER_OPTIONS = [
 const BACKGROUND_CHECK_INTERVAL_MS = 20000;
 const PRESENCE_HEARTBEAT_MS = 30000;
 const ONLINE_THRESHOLD_MS = 60000;
+const MESSAGES_PAGE_SIZE = 40;
 
 // Renders *bold*, _italic_, ~strike~, "@mention" and "> quoted line" —
 // the same shortcut syntax WhatsApp recognizes while typing.
@@ -122,7 +124,7 @@ function renderFormattedText(text) {
 }
 
 export default function Chat() {
-  const { currentUser } = useAuth();
+  const { currentUser, currentProfile } = useAuth();
   const { startCall } = useCall();
   const { t } = useLanguage();
   const [people, setPeople] = useState([]);
@@ -299,16 +301,72 @@ export default function Chat() {
     return people.find((p) => p.id === uid)?.name || 'Member';
   }
 
+  // Messages: only the latest MESSAGES_PAGE_SIZE are kept live via onSnapshot.
+  // Older pages are fetched once (not live) via loadOlderMessages() below and
+  // appended — this is the "don't load the whole history at once" fix.
+  // `olderDocs` holds pages loaded before the live window's oldest doc, kept
+  // as raw QueryDocumentSnapshots (loadOlderMessages anchors on the oldest
+  // shown message's createdAt, not a doc reference — see there for why).
+  const [olderDocs, setOlderDocs] = useState([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const liveDocsRef = useRef([]); // latest snap.docs from the live window, desc order
+  // Kept in a ref too so the live onSnapshot callback below (a stale
+  // closure otherwise) always merges the latest older-pages state.
+  const olderDocsRef = useRef([]);
+  useEffect(() => { olderDocsRef.current = olderDocs; }, [olderDocs]);
+
   useEffect(() => {
     if (!activeChat || !currentUser) return;
     const { chatId } = getChatMeta();
-    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
+    setOlderDocs([]);
+    setHasMoreOlder(true);
+    liveDocsRef.current = [];
+    const q = query(
+      collection(db, 'chats', chatId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(MESSAGES_PAGE_SIZE)
+    );
     const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      liveDocsRef.current = snap.docs;
+      // Fewer than a full page live means there's nothing older to page in.
+      if (snap.docs.length < MESSAGES_PAGE_SIZE) setHasMoreOlder(false);
+      const merged = new Map();
+      [...snap.docs, ...olderDocsRef.current].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+      setMessages([...merged.values()].reverse());
     });
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat, currentUser]);
+
+  async function loadOlderMessages() {
+    if (loadingOlder || !hasMoreOlder || !activeChat || !currentUser || messages.length === 0) return;
+    const oldestShown = messages[0]; // `messages` is ascending, so index 0 is oldest
+    if (!oldestShown?.createdAt) return;
+    setLoadingOlder(true);
+    try {
+      const { chatId } = getChatMeta();
+      const q = query(
+        collection(db, 'chats', chatId, 'messages'),
+        orderBy('createdAt', 'desc'),
+        where('createdAt', '<', oldestShown.createdAt),
+        limit(MESSAGES_PAGE_SIZE)
+      );
+      const snap = await getDocs(q);
+      if (snap.docs.length < MESSAGES_PAGE_SIZE) setHasMoreOlder(false);
+      setOlderDocs((prev) => {
+        const next = [...prev, ...snap.docs];
+        const merged = new Map();
+        [...liveDocsRef.current, ...next].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+        setMessages([...merged.values()].reverse());
+        return next;
+      });
+    } catch (err) {
+      console.error('loadOlderMessages failed', err);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   // Live chat doc (pinned message, admin list, disappearing timer, mute, etc).
   useEffect(() => {
@@ -336,8 +394,13 @@ export default function Chat() {
   }, [activeChat]);
 
   // Mark incoming messages as read (direct chats only — keeps group receipts simple).
+  // Respects Settings > Chat & Call > "Read receipts": if the reader has
+  // turned this off, we don't write readBy at all, so the sender never
+  // sees a read tick for them (matches the WhatsApp-style convention that
+  // turning receipts off is mutual, not just cosmetic on your own end).
+  const readReceiptsEnabled = currentProfile?.settings?.readReceipts !== false;
   useEffect(() => {
-    if (!activeChat || activeChat.type !== 'direct' || !currentUser) return;
+    if (!activeChat || activeChat.type !== 'direct' || !currentUser || !readReceiptsEnabled) return;
     const { chatId } = getChatMeta();
     const unread = messages.filter(
       (m) => m.senderId !== currentUser.uid && !(m.readBy || []).includes(currentUser.uid)
@@ -348,18 +411,26 @@ export default function Chat() {
       }).catch(() => {});
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, activeChat, currentUser]);
+  }, [messages, activeChat, currentUser, readReceiptsEnabled]);
 
   // Presence heartbeat: keep our own lastSeen fresh while the app is open.
+  // Respects Settings > Privacy > "Show online status" — if the user has
+  // turned it off, we stop writing presence entirely (and clear any stale
+  // doc from before they turned it off) instead of just hiding it in the UI.
+  const showOnlineStatus = currentProfile?.settings?.showOnlineStatus !== false;
   useEffect(() => {
     if (!currentUser) return;
+    if (!showOnlineStatus) {
+      deleteDoc(doc(db, 'presence', currentUser.uid)).catch(() => {});
+      return;
+    }
     const beat = () => {
       setDoc(doc(db, 'presence', currentUser.uid), { lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
     };
     beat();
     const interval = setInterval(beat, PRESENCE_HEARTBEAT_MS);
     return () => clearInterval(interval);
-  }, [currentUser]);
+  }, [currentUser, showOnlineStatus]);
 
   // Subscribe to the other participant's presence in a direct chat.
   useEffect(() => {
@@ -369,6 +440,32 @@ export default function Chat() {
     });
     return unsub;
   }, [activeChat]);
+
+  // Subscribe to the other participant's profile just for `blocked` — used
+  // to hide the composer/call buttons on either side of a block. This is a
+  // UX convenience only; the real enforcement is in firestore.rules
+  // (isBlockedPair), since a client-side check alone can be bypassed.
+  const [otherProfile, setOtherProfile] = useState(null);
+  useEffect(() => {
+    if (!activeChat || activeChat.type !== 'direct') { setOtherProfile(null); return; }
+    const unsub = onSnapshot(doc(db, 'users', activeChat.person.id), (snap) => {
+      setOtherProfile(snap.exists() ? snap.data() : null);
+    });
+    return unsub;
+  }, [activeChat]);
+
+  const isBlockedEitherWay = activeChat?.type === 'direct' && (
+    (currentProfile?.blocked || []).includes(activeChat.person.id) ||
+    (otherProfile?.blocked || []).includes(currentUser.uid)
+  );
+
+  // Respects the other person's Settings > Privacy > "Who can message me".
+  // 'connections' means only people they've accepted a connection with.
+  // Only a UX convenience — see the connections-doc-ID note in
+  // firestore.rules for why this isn't (yet) also enforced server-side.
+  const isRestrictedByWhoCanMessage = activeChat?.type === 'direct' &&
+    otherProfile?.settings?.whoCanMessage === 'connections' &&
+    !connectedPeople.some((p) => p.id === activeChat.person.id);
 
   // Listen to this user's own pending scheduled messages (across all chats).
   useEffect(() => {
@@ -707,6 +804,10 @@ export default function Chat() {
   }
 
   function handleStartCall(callType) {
+    if (activeChat.type === 'direct' && isBlockedEitherWay) {
+      alert('You can\u2019t call this user.');
+      return;
+    }
     const others = activeChat.type === 'direct'
       ? [activeChat.person.id]
       : activeChat.chat.participants.filter((id) => id !== currentUser.uid);
@@ -961,7 +1062,7 @@ export default function Chat() {
       .filter((m) => !(m.deletedFor || []).includes(currentUser.uid))
       .filter((m) => !searchQuery.trim() || (m.text || '').toLowerCase().includes(searchQuery.trim().toLowerCase()));
     const isAdmin = activeChat.type === 'group' && (chatMeta?.admins || []).includes(currentUser.uid);
-    const sendBlocked = activeChat.type === 'group' && chatMeta?.onlyAdminsCanSend && !isAdmin;
+    const sendBlocked = (activeChat.type === 'group' && chatMeta?.onlyAdminsCanSend && !isAdmin) || isBlockedEitherWay || isRestrictedByWhoCanMessage;
     const groupParticipantIds = activeChat.type === 'group' ? (chatMeta?.participants || activeChat.chat.participants || []) : [];
     const addableConnections = connectedPeople.filter((p) => !groupParticipantIds.includes(p.id) && !(chatMeta?.pendingMembers || []).includes(p.id));
     const isMuted = (chatMeta?.mutedBy || []).includes(currentUser.uid);
@@ -1147,6 +1248,13 @@ export default function Chat() {
         )}
 
         <div className="chat-messages" style={{ background: wallpaper.bg }}>
+          {hasMoreOlder && !searchQuery.trim() && (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <button className="btn btn-ghost btn-sm" onClick={loadOlderMessages} disabled={loadingOlder}>
+                {loadingOlder ? 'Loading…' : '⬆️ Load older messages'}
+              </button>
+            </div>
+          )}
           {visibleMessages.map((m) => {
             const isMine = m.senderId === currentUser.uid;
             const reactionEntries = Object.entries(m.reactions || {}).filter(([, uids]) => uids?.length);
@@ -1390,7 +1498,11 @@ export default function Chat() {
 
         {sendBlocked ? (
           <div className="only-admins-notice" style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, opacity: 0.75 }}>
-            🔒 Only admins can send messages in this group.
+            {isBlockedEitherWay
+              ? '🚫 You can\u2019t message this user.'
+              : isRestrictedByWhoCanMessage
+                ? '🔒 This person only accepts messages from connections.'
+                : '🔒 Only admins can send messages in this group.'}
           </div>
         ) : (
           <>

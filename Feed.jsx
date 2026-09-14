@@ -8,7 +8,6 @@ import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase'
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
-import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -89,12 +88,6 @@ export default function Feed() {
   const [preview, setPreview] = useState('');
   const [posting, setPosting] = useState(false);
   const [openComments, setOpenComments] = useState(null);
-  const [bookmarkIds, setBookmarkIds] = useState(new Set());
-
-  useEffect(() => {
-    if (!currentUser) return;
-    return listenBookmarks(currentUser.uid, (list) => setBookmarkIds(new Set(list.map((b) => b.id))));
-  }, [currentUser]);
 
   useEffect(() => {
     const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
@@ -375,20 +368,6 @@ export default function Feed() {
                 🔁 Share {post.shares?.length || 0}
               </button>
             )}
-            <button
-              type="button"
-              className={'btn btn-ghost btn-sm' + (bookmarkIds.has(bookmarkDocId('post', post.id)) ? ' active' : '')}
-              onClick={() => toggleBookmark(currentUser.uid, bookmarkIds.has(bookmarkDocId('post', post.id)), {
-                type: 'post',
-                itemId: post.id,
-                title: post.authorName,
-                snippet: (post.text || '').slice(0, 100),
-                imageURL: post.authorPhotoURL || '',
-                link: '/',
-              })}
-            >
-              {bookmarkIds.has(bookmarkDocId('post', post.id)) ? '🔖 Saved' : '🔖 Save'}
-            </button>
           </div>
           {openComments === post.id && (
             <Comments postId={post.id} postAuthorId={post.authorId} currentUser={currentUser} currentProfile={currentProfile} />
@@ -397,4 +376,4 @@ export default function Feed() {
       ))}
     </div>
   );
-              }
+    }
