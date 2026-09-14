@@ -7,6 +7,7 @@ import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useLanguage } from './LanguageContext';
 import { useToast } from './ToastContext';
+import { useNotifications } from './src/context/NotificationContext';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -25,6 +26,7 @@ export default function Notifications() {
   const toast = useToast();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
+  const { permission: pushPermission, enabling: pushEnabling, enableNotifications } = useNotifications();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -109,6 +111,30 @@ export default function Notifications() {
         {unreadCount > 0 && <span className="badge">{unreadCount} {t('notifications.new')}</span>}
       </div>
 
+      {/* Push-permission nudge: only shows if the user hasn't granted (or has
+          denied) browser push permission yet. Placed here, not just in
+          Settings, so people see the option right where notifications live. */}
+      {pushPermission !== 'granted' && (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <span style={{ fontSize: 22 }}>🔔</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600 }}>
+              {pushPermission === 'denied' ? 'Push notifications blocked' : 'Turn on push notifications'}
+            </div>
+            <div className="settings-toggle-hint">
+              {pushPermission === 'denied'
+                ? 'Notifications block hain browser/device settings mein — waha se manually allow karo.'
+                : 'Naye likes, messages, jobs aur updates ke liye turant alert paane ke liye enable karo.'}
+            </div>
+          </div>
+          {pushPermission !== 'denied' && (
+            <button className="btn btn-primary btn-sm" onClick={enableNotifications} disabled={pushEnabling}>
+              {pushEnabling ? 'Enabling…' : 'Enable'}
+            </button>
+          )}
+        </div>
+      )}
+
       {notifications.length > 0 && (
         <div className="notifications-toolbar">
           <button className="btn btn-ghost btn-sm" onClick={markAllRead} disabled={unreadCount === 0}>
@@ -163,4 +189,4 @@ export default function Notifications() {
       )}
     </div>
   );
-}
+            }
