@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { collection, doc, getDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
+import { useLanguage } from './LanguageContext';
 
 export default function StoreDetail() {
   const { storeId } = useParams();
+  const { t } = useLanguage();
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,12 +26,12 @@ export default function StoreDetail() {
     return unsub;
   }, [storeId]);
 
-  if (loading) return <div className="marketplace-page"><div className="empty-state">Loading…</div></div>;
-  if (!store) return <div className="marketplace-page"><div className="empty-state">Store not found.</div></div>;
+  if (loading) return <div className="marketplace-page"><div className="empty-state">{t('market.store.loading')}</div></div>;
+  if (!store) return <div className="marketplace-page"><div className="empty-state">{t('market.store.notFound')}</div></div>;
 
   return (
     <div className="marketplace-page">
-      <Link to="/market" className="linklike">← Back to Market</Link>
+      <Link to="/market" className="linklike">{t('market.store.backToMarket')}</Link>
 
       <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
         <div className="avatar" style={{ width: 56, height: 56 }}>
@@ -37,12 +39,12 @@ export default function StoreDetail() {
         </div>
         <div>
           <div className="listing-title">{store.name}</div>
-          <div className="job-meta">by {store.ownerName}</div>
+          <div className="job-meta">{t('market.store.by')} {store.ownerName}</div>
           {store.description && <p className="listing-description">{store.description}</p>}
         </div>
       </div>
 
-      <h3 className="settings-subheading" style={{ marginTop: 16 }}>Products ({products.length})</h3>
+      <h3 className="settings-subheading" style={{ marginTop: 16 }}>{t('market.myProducts')} ({products.length})</h3>
 
       <div className="people-grid">
         {products.map((p) => (
@@ -52,11 +54,11 @@ export default function StoreDetail() {
             <div className="listing-price">₹{p.price}</div>
             {p.description && <p className="listing-description">{p.description}</p>}
             <div className="listing-seller">
-              {p.stock > 0 ? `In stock: ${p.stock}` : 'Out of stock'}
+              {p.stock > 0 ? `${t('market.product.inStock')}: ${p.stock}` : t('market.product.outOfStock')}
             </div>
           </div>
         ))}
-        {products.length === 0 && <div className="empty-state">No products listed yet.</div>}
+        {products.length === 0 && <div className="empty-state">{t('market.noProducts')}</div>}
       </div>
     </div>
   );
