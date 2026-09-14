@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, where,
   serverTimestamp,
@@ -24,12 +25,19 @@ function timeAgo(ts) {
   return `${Math.floor(hrs / 24)}d`;
 }
 
-// -----------------------------------------------------------------------
-// RFQ bids — shown expanded inside an RFQ card. Buyers query all bids for
-// the RFQ (allowed by rules since they own the parent doc); sellers query
-// only their own bid (where sellerId == their uid) since Firestore rejects
-// the *entire* list query if a rule would deny even one candidate document.
-// -----------------------------------------------------------------------
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: fd }
+  );
+  const data = await res.json();
+  if (!data.secure_url) throw new Error('Image upload failed');
+  return data.secure_url;
+}
+
 function RfqBids({ rfq, currentUser, currentProfile, toast }) {
   const [bids, setBids] = useState([]);
   const [price, setPrice] = useState('');
@@ -159,12 +167,239 @@ function RfqBids({ rfq, currentUser, currentProfile, toast }) {
   );
 }
 
+// -----------------------------------------------------------------------
+// My Store — create/manage your own shop + its product catalog
+// -----------------------------------------------------------------------
+function MyStore({ currentUser, currentProfile, toast }) {
+  const [myStore, setMyStore] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [storeForm, setStoreForm] = useState({ name: '', description: '' });
+  const [logo, setLogo] = useState(null);
+  const [logoPreview, setLogoPreview] = useState('');
+  const [savingStore, setSavingStore] = useState(false);
+
+  const [products, setProducts] = useState([]);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [productForm, setProductForm] = useState({ title: '', price: '', description: '', stock: '' });
+  const [productImage, setProductImage] = useState(null);
+  const [productPreview, setProductPreview] = useState('');
+  const [savingProduct, setSavingProduct] = useState(false);
+
+  useEffect(() => {
+    const q = query(collection(db, 'stores'), where('ownerId', '==', currentUser.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      setMyStore(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() });
+      setLoading(false);
+    });
+    return unsub;
+  }, [currentUser.uid]);
+
+  useEffect(() => {
+    if (!myStore) { setProducts([]); return; }
+    const q = query(collection(db, 'stores', myStore.id, 'products'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return unsub;
+  }, [myStore]);
+
+  async function createStore(e) {
+    e.preventDefault();
+    if (!storeForm.name.trim()) return;
+    setSavingStore(true);
+    try {
+      let logoURL = '';
+      if (logo) logoURL = await uploadToCloudinary(logo);
+      await addDoc(collection(db, 'stores'), {
+        ownerId: currentUser.uid,
+        ownerName: currentProfile?.name || 'Member',
+        name: storeForm.name.trim(),
+        description: storeForm.description.trim(),
+        logoURL,
+        createdAt: serverTimestamp(),
+      });
+      toast('Store created!');
+    } catch (err) {
+      toast(err.message || 'Could not create store');
+    }
+    setSavingStore(false);
+  }
+
+  async function addProduct(e) {
+    e.preventDefault();
+    if (!productForm.title.trim() || !productForm.price) return;
+    setSavingProduct(true);
+    try {
+      let imageURL = '';
+      if (productImage) imageURL = await uploadToCloudinary(productImage);
+      await addDoc(collection(db, 'stores', myStore.id, 'products'), {
+        title: productForm.title.trim(),
+        price: Number(productForm.price) || 0,
+        description: productForm.description.trim(),
+        stock: Number(productForm.stock) || 0,
+        imageURL,
+        createdAt: serverTimestamp(),
+      });
+      setProductForm({ title: '', price: '', description: '', stock: '' });
+      setProductImage(null); setProductPreview(''); setShowProductForm(false);
+      toast('Product added');
+    } catch (err) {
+      toast(err.message || 'Could not add product');
+    }
+    setSavingProduct(false);
+  }
+
+  async function deleteProduct(productId) {
+    if (!confirm('Delete this product?')) return;
+    await deleteDoc(doc(db, 'stores', myStore.id, 'products', productId));
+  }
+
+  async function updateStock(productId, stock) {
+    await updateDoc(doc(db, 'stores', myStore.id, 'products', productId), { stock: Number(stock) || 0 });
+  }
+
+  if (loading) return <div className="empty-state">Loading…</div>;
+
+  if (!myStore) {
+    return (
+      <form className="card" onSubmit={createStore}>
+        <h3 className="listing-title">Apni Dukan banayein</h3>
+        <div className="form-field">
+          <input type="text" placeholder="Shop name" value={storeForm.name}
+            onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })} />
+        </div>
+        <div className="form-field">
+          <textarea placeholder="Description (kya bechte hain)" rows={2} value={storeForm.description}
+            onChange={(e) => setStoreForm({ ...storeForm, description: e.target.value })} />
+        </div>
+        {logoPreview && <img className="composer-preview-img" src={logoPreview} alt="" />}
+        <label className="btn btn-ghost btn-sm">
+          Add shop logo
+          <input type="file" accept="image/*" hidden onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) { setLogo(f); setLogoPreview(URL.createObjectURL(f)); }
+          }} />
+        </label>
+        <button type="submit" className="btn btn-primary btn-block" disabled={savingStore} style={{ marginTop: 8 }}>
+          {savingStore ? <span className="spinner" /> : 'Create Store'}
+        </button>
+      </form>
+    );
+  }
+
+  return (
+    <>
+      <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div className="avatar" style={{ width: 48, height: 48 }}>
+          {myStore.logoURL ? <img src={myStore.logoURL} alt="" /> : (myStore.name?.[0] || '🏪')}
+        </div>
+        <div>
+          <div className="listing-title">{myStore.name}</div>
+          {myStore.description && <div className="job-meta">{myStore.description}</div>}
+        </div>
+      </div>
+
+      <div className="card">
+        <button className="btn btn-primary btn-sm" onClick={() => setShowProductForm((v) => !v)}>
+          {showProductForm ? 'Cancel' : '+ Add product'}
+        </button>
+      </div>
+
+      {showProductForm && (
+        <form className="card" onSubmit={addProduct}>
+          <div className="form-field">
+            <input type="text" placeholder="Product name" value={productForm.title}
+              onChange={(e) => setProductForm({ ...productForm, title: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div className="form-field" style={{ flex: 1 }}>
+              <input type="number" placeholder="Price (₹)" value={productForm.price}
+                onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} />
+            </div>
+            <div className="form-field" style={{ flex: 1 }}>
+              <input type="number" placeholder="Stock qty" value={productForm.stock}
+                onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })} />
+            </div>
+          </div>
+          <div className="form-field">
+            <textarea placeholder="Description" rows={2} value={productForm.description}
+              onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} />
+          </div>
+          {productPreview && <img className="composer-preview-img" src={productPreview} alt="" />}
+          <label className="btn btn-ghost btn-sm">
+            Add photo
+            <input type="file" accept="image/*" hidden onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) { setProductImage(f); setProductPreview(URL.createObjectURL(f)); }
+            }} />
+          </label>
+          <button type="submit" className="btn btn-primary btn-block" disabled={savingProduct} style={{ marginTop: 8 }}>
+            {savingProduct ? <span className="spinner" /> : 'Add product'}
+          </button>
+        </form>
+      )}
+
+      <h3 className="settings-subheading">Aapke products ({products.length})</h3>
+      <div className="people-grid">
+        {products.map((p) => (
+          <div className={'card listing-card' + (p.stock === 0 ? ' sold' : '')} key={p.id}>
+            {p.imageURL && <img className="listing-image" src={p.imageURL} alt="" />}
+            <div className="listing-title">{p.title}</div>
+            <div className="listing-price">₹{p.price}</div>
+            <div className="form-field" style={{ marginTop: 8 }}>
+              <input type="number" defaultValue={p.stock} placeholder="Stock"
+                onBlur={(e) => updateStock(p.id, e.target.value)} />
+            </div>
+            <div className="job-actions">
+              <button className="btn btn-ghost btn-sm" onClick={() => deleteProduct(p.id)}>Delete</button>
+            </div>
+          </div>
+        ))}
+        {products.length === 0 && <div className="empty-state">Abhi koi product nahi hai.</div>}
+      </div>
+    </>
+  );
+}
+
+// -----------------------------------------------------------------------
+// Directory of all stores (browse others)
+// -----------------------------------------------------------------------
+function StoreDirectory() {
+  const [stores, setStores] = useState([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'stores'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setStores(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return unsub;
+  }, []);
+
+  return (
+    <div className="people-grid">
+      {stores.map((s) => (
+        <Link to={`/store/${s.id}`} className="card listing-card" key={s.id} style={{ display: 'block' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div className="avatar">
+              {s.logoURL ? <img src={s.logoURL} alt="" /> : (s.name?.[0] || '🏪')}
+            </div>
+            <div>
+              <div className="listing-title">{s.name}</div>
+              <div className="job-meta">by {s.ownerName}</div>
+            </div>
+          </div>
+        </Link>
+      ))}
+      {stores.length === 0 && <div className="empty-state">Koi store nahi hai abhi.</div>}
+    </div>
+  );
+}
+
 export default function Marketplace() {
   const { currentUser, currentProfile } = useAuth();
   const toast = useToast();
-  const [tab, setTab] = useState('listings'); // 'listings' | 'rfq'
+  const [tab, setTab] = useState('listings'); // 'listings' | 'rfq' | 'stores'
 
-  // ---- Buy & Sell listings state ----
   const [listings, setListings] = useState([]);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -173,7 +408,6 @@ export default function Marketplace() {
   const [preview, setPreview] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // ---- RFQ state ----
   const [rfqs, setRfqs] = useState([]);
   const [showRfqForm, setShowRfqForm] = useState(false);
   const [rfqForm, setRfqForm] = useState({
@@ -211,18 +445,7 @@ export default function Marketplace() {
     setSaving(true);
     try {
       let imageURL = '';
-      if (image) {
-        const fd = new FormData();
-        fd.append('file', image);
-        fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-        const res = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-          { method: 'POST', body: fd }
-        );
-        const data = await res.json();
-        if (!data.secure_url) throw new Error('Image upload failed');
-        imageURL = data.secure_url;
-      }
+      if (image) imageURL = await uploadToCloudinary(image);
       await addDoc(collection(db, 'listings'), {
         title: form.title.trim(),
         price: Number(form.price) || 0,
@@ -310,6 +533,12 @@ export default function Marketplace() {
           onClick={() => setTab('rfq')}
         >
           Request for Quote
+        </button>
+        <button
+          className={'market-tab' + (tab === 'stores' ? ' active' : '')}
+          onClick={() => setTab('stores')}
+        >
+          Stores
         </button>
       </div>
 
@@ -455,6 +684,16 @@ export default function Marketplace() {
           ))}
         </>
       )}
+
+      {tab === 'stores' && (
+        <>
+          <h3 className="settings-subheading">Aapki Dukan</h3>
+          <MyStore currentUser={currentUser} currentProfile={currentProfile} toast={toast} />
+
+          <h3 className="settings-subheading" style={{ marginTop: 20 }}>Sabhi Stores</h3>
+          <StoreDirectory />
+        </>
+      )}
     </div>
   );
-}
+    }
