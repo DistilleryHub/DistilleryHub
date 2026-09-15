@@ -100,12 +100,34 @@ export default function Feed() {
 
   useEffect(() => {
     if (!currentUser) return;
-    return listenBookmarks(currentUser.uid, (list) => setBookmarkIds(new Set(list.map((b) => b.id))));
+    return listenMyFollowing(currentUser.uid, setFollowingIds);
   }, [currentUser]);
+
+  async function handleFollowToggle(authorId) {
+    try {
+      if (followingIds.has(authorId)) {
+        await unfollowUser(currentUser.uid, authorId);
+      } else {
+        await followUser(currentUser.uid, authorId);
+        notify({
+          toUserId: authorId,
+          type: 'follow',
+          message: `${currentProfile?.name || 'Someone'} started following you`,
+          link: `/profile/${currentUser.uid}`,
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
+    } catch (err) {
+      console.error('handleFollowToggle failed', err);
+      toast('Could not update follow');
+    }
+  }
 
   useEffect(() => {
     if (!currentUser) return;
-    return listenMyFollowing(currentUser.uid, setFollowingIds);
+    return listenBookmarks(currentUser.uid, (list) => setBookmarkIds(new Set(list.map((b) => b.id))));
   }, [currentUser]);
 
   useEffect(() => {
@@ -353,28 +375,6 @@ export default function Feed() {
     await deleteDoc(doc(db, 'posts', post.id));
   }
 
-  async function handleFollowToggle(authorId) {
-    const wasFollowing = followingIds.has(authorId);
-    try {
-      if (wasFollowing) {
-        await unfollowUser(currentUser.uid, authorId);
-      } else {
-        await followUser(currentUser.uid, authorId);
-        notify({
-          toUserId: authorId,
-          type: 'follow',
-          message: `${currentProfile?.name || 'Someone'} started following you`,
-          link: `/profile/${currentUser.uid}`,
-          fromUserId: currentUser.uid,
-          fromUserName: currentProfile?.name || 'Member',
-          fromUserPhoto: currentProfile?.photoURL || '',
-        });
-      }
-    } catch (err) {
-      toast(err.message || 'Could not update follow');
-    }
-  }
-
   function renderMedia(imageURL, videoURL) {
     if (videoURL) {
       return (
@@ -482,7 +482,7 @@ export default function Feed() {
                 {post.sharedFrom ? 'shared a post · ' : ''}{timeAgo(post.createdAt)}
               </div>
             </div>
-            {post.authorId !== currentUser.uid && !post.sharedFrom && (
+            {post.authorId !== currentUser.uid && (
               <button
                 type="button"
                 className={'btn btn-sm' + (followingIds.has(post.authorId) ? ' btn-ghost' : ' btn-primary')}
