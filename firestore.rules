@@ -134,6 +134,12 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
     }
 
+   // ===== Scheduled posts (Feed) =====
+     match /scheduledPosts/{postId} {
+      allow read, update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+    }
+
     // ===== Calls + signaling =====
     match /calls/{callId} {
       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
