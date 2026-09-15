@@ -8,6 +8,7 @@ import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase'
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
+import { useCall } from './CallContext';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -75,6 +76,7 @@ export default function GroupDetail() {
   const { groupId } = useParams();
   const { currentUser, currentProfile } = useAuth();
   const toast = useToast();
+  const { startCall } = useCall();
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
   const [isMember, setIsMember] = useState(false);
@@ -203,6 +205,36 @@ export default function GroupDetail() {
     }
   }
 
+  // Group calls reuse the same mesh WebRTC CallContext as 1-to-1 calls —
+  // it already accepts an array of participant UIDs.
+  async function startGroupCall(callType) {
+    const others = members.filter((m) => m.uid !== currentUser.uid).map((m) => m.uid);
+    if (others.length === 0) {
+      toast('No other members to call yet');
+      return;
+    }
+    if (others.length > 7) {
+      toast('Group calls work best with up to 8 people — starting anyway');
+    }
+    try {
+      await startCall(others, callType);
+      others.forEach((uid) => {
+        notify({
+          toUserId: uid,
+          type: 'group_call',
+          message: `${currentProfile?.name || 'Someone'} started a call in "${group.name}"`,
+          link: `/groups/${groupId}`,
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+          groupName: group.name,
+        });
+      });
+    } catch (err) {
+      toast(err.message || 'Could not start call');
+    }
+  }
+
   if (!group) return <div className="empty-state">Loading…</div>;
 
   return (
@@ -225,6 +257,12 @@ export default function GroupDetail() {
           <button className="btn btn-ghost btn-sm" onClick={() => setShowMembers((v) => !v)}>
             {showMembers ? 'Hide members' : 'View members'}
           </button>
+          {isMember && members.length > 1 && (
+            <>
+              <button className="btn btn-ghost btn-sm" onClick={() => startGroupCall('audio')}>🎤 Voice call</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => startGroupCall('video')}>📹 Video call</button>
+            </>
+          )}
         </div>
         {showMembers && (
           <div className="group-members-list">
@@ -311,5 +349,4 @@ export default function GroupDetail() {
       ))}
     </div>
   );
-}
-
+  }
