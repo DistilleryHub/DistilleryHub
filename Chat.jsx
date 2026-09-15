@@ -131,6 +131,9 @@ export default function Chat() {
   const [people, setPeople] = useState([]);
   const [connections, setConnections] = useState([]);
   const [groupChats, setGroupChats] = useState([]);
+  const [directChatDocs, setDirectChatDocs] = useState([]);
+  const [listTab, setListTab] = useState('chats'); // 'chats' | 'groups' | 'calls'
+  const [listSearch, setListSearch] = useState('');
   const [activeChat, setActiveChat] = useState(null);
   const [chatMeta, setChatMeta] = useState(null); // live chat doc: pinned/admin/disappearing/mute/etc.
   const [messages, setMessages] = useState([]);
@@ -206,11 +209,12 @@ export default function Chat() {
     if (!currentUser) return;
     const q = query(collection(db, 'chats'), where('participants', 'array-contains', currentUser.uid));
     const unsub = onSnapshot(q, (snap) => {
-      const groups = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((c) => c.type === 'group');
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const groups = all.filter((c) => c.type === 'group');
       groups.sort((a, b) => (b.lastMessageAt?.toMillis() || 0) - (a.lastMessageAt?.toMillis() || 0));
       setGroupChats(groups);
+      const direct = all.filter((c) => c.type === 'direct');
+      setDirectChatDocs(direct);
     });
     return unsub;
   }, [currentUser]);
@@ -219,6 +223,39 @@ export default function Chat() {
     const otherIds = connections.map((c) => (c.from === currentUser?.uid ? c.to : c.from));
     return people.filter((p) => otherIds.includes(p.id));
   }, [connections, people, currentUser]);
+
+  // Direct chat doc (lastMessage/lastMessageAt) for each connected person,
+  // keyed by their uid — chat doc IDs are deterministic (chatIdFor), so the
+  // other participant is just whichever id in `participants` isn't mine.
+  const directChatByPersonId = useMemo(() => {
+    const map = {};
+    directChatDocs.forEach((c) => {
+      const otherId = (c.participants || []).find((id) => id !== currentUser?.uid);
+      if (otherId) map[otherId] = c;
+    });
+    return map;
+  }, [directChatDocs, currentUser]);
+
+  // WhatsApp-style ordering: whoever you most recently messaged floats to
+  // the top; connections you haven't chatted with yet fall to the bottom,
+  // alphabetically.
+  const sortedDirectList = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    return connectedPeople
+      .map((p) => ({ person: p, chatDoc: directChatByPersonId[p.id] || null }))
+      .filter(({ person }) => !q || person.name?.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const at = a.chatDoc?.lastMessageAt?.toMillis() || 0;
+        const bt = b.chatDoc?.lastMessageAt?.toMillis() || 0;
+        if (at !== bt) return bt - at;
+        return (a.person.name || '').localeCompare(b.person.name || '');
+      });
+  }, [connectedPeople, directChatByPersonId, listSearch]);
+
+  const filteredGroupChats = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    return groupChats.filter((c) => !q || c.name?.toLowerCase().includes(q));
+  }, [groupChats, listSearch]);
 
   // Other members of the currently open group chat, used for @mention lookups.
   const groupMembers = useMemo(() => {
@@ -1468,11 +1505,48 @@ export default function Chat() {
 
   return (
     <div className="chat-page">
-      <div className="card">
-        <button className="btn btn-primary btn-sm" onClick={() => setShowNewGroup((v) => !v)}>
-          {showNewGroup ? 'Cancel' : 'New group chat'}
+      <div className="chat-list-tabs">
+        <button
+          type="button"
+          className={'chat-list-tab' + (listTab === 'chats' ? ' active' : '')}
+          onClick={() => setListTab('chats')}
+        >
+          💬 Chats
+        </button>
+        <button
+          type="button"
+          className={'chat-list-tab' + (listTab === 'groups' ? ' active' : '')}
+          onClick={() => setListTab('groups')}
+        >
+          👥 Groups{groupChats.length > 0 ? ` ${groupChats.length}` : ''}
+        </button>
+        <button
+          type="button"
+          className={'chat-list-tab' + (listTab === 'calls' ? ' active' : '')}
+          onClick={() => setListTab('calls')}
+        >
+          📞 Calls
+        </button>
+        <button
+          type="button"
+          className="chat-list-tab-add"
+          onClick={() => setShowNewGroup((v) => !v)}
+          title="New group chat"
+        >
+          {showNewGroup ? '✕' : '+'}
         </button>
       </div>
+
+      {listTab !== 'calls' && (
+        <div className="card" style={{ padding: '10px 14px' }}>
+          <input
+            type="text"
+            placeholder={listTab === 'groups' ? 'Search groups...' : 'Search chats...'}
+            value={listSearch}
+            onChange={(e) => setListSearch(e.target.value)}
+          />
+        </div>
+      )}
 
       {showNewGroup && (
         <form className="card" onSubmit={createGroup}>
@@ -1491,36 +1565,53 @@ export default function Chat() {
         </form>
       )}
 
-      {groupChats.length > 0 && (
-        <div className="card">
-          <h3>Groups</h3>
-          {groupChats.map((chat) => (
-            <div className="person-row" key={chat.id} onClick={() => setActiveChat({ type: 'group', chat })}>
+      {listTab === 'groups' && (
+        <>
+          {filteredGroupChats.length === 0 && (
+            <div className="empty-state">
+              {groupChats.length === 0 ? 'No groups yet — tap + to start one.' : 'No groups match your search.'}
+            </div>
+          )}
+          {filteredGroupChats.map((chat) => (
+            <div className="card person-row" key={chat.id} onClick={() => setActiveChat({ type: 'group', chat })}>
               <div className="avatar">👥</div>
               <div className="person-info">
                 <div className="person-name">{chat.name}</div>
                 <div className="person-headline">{chat.lastMessage || 'No messages yet'}</div>
               </div>
+              {chat.lastMessageAt && <div className="chat-list-time">{timeAgo(chat.lastMessageAt)}</div>}
             </div>
           ))}
-        </div>
+        </>
       )}
 
-      <h3>Direct messages</h3>
-      {connectedPeople.length === 0 && (
-        <div className="empty-state">Connect with people in Network to start chatting.</div>
+      {listTab === 'chats' && (
+        <>
+          {sortedDirectList.length === 0 && (
+            <div className="empty-state">
+              {connectedPeople.length === 0 ? 'Connect with people in Network to start chatting.' : 'No chats match your search.'}
+            </div>
+          )}
+          {sortedDirectList.map(({ person, chatDoc }) => (
+            <div className="card person-row" key={person.id} onClick={() => setActiveChat({ type: 'direct', person })}>
+              <div className="avatar">
+                {person.photoURL ? <img src={person.photoURL} alt="" /> : (person.name?.[0] || '?')}
+              </div>
+              <div className="person-info">
+                <div className="person-name">{person.name}</div>
+                <div className="person-headline">{chatDoc?.lastMessage || person.headline || 'Tap to start chatting'}</div>
+              </div>
+              {chatDoc?.lastMessageAt && <div className="chat-list-time">{timeAgo(chatDoc.lastMessageAt)}</div>}
+            </div>
+          ))}
+        </>
       )}
-      {connectedPeople.map((person) => (
-        <div className="card person-row" key={person.id} onClick={() => setActiveChat({ type: 'direct', person })}>
-          <div className="avatar">
-            {person.photoURL ? <img src={person.photoURL} alt="" /> : (person.name?.[0] || '?')}
-          </div>
-          <div className="person-info">
-            <div className="person-name">{person.name}</div>
-            <div className="person-headline">{person.headline}</div>
-          </div>
+
+      {listTab === 'calls' && (
+        <div className="empty-state">
+          📞 Call history yahan aayega — iske liye CallContext.jsx bhejna padega taaki actual call logs (kisne kab call kiya, missed/answered) sahi se wire ho sakein.
         </div>
-      ))}
+      )}
     </div>
   );
 }
