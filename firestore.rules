@@ -101,6 +101,14 @@ service cloud.firestore {
     }
 
     // ===== Chats + messages =====
+    // NOTE: "who can message me" (Settings > Privacy) is currently enforced
+    // client-side only (Chat.jsx) — NOT here. Server-side enforcement needs
+    // connections/{connId} to use a deterministic ID (e.g. sorted "uidA_uidB")
+    // instead of addDoc's random ID, so a rule can get() a specific doc
+    // instead of running a query (rules can't query). That's a data-model
+    // change touching Network.jsx too, so it's left as a follow-up rather
+    // than shipped half-verified. Block enforcement above IS server-side,
+    // since `blocked` already lives at a fixed path (users/{uid}.blocked).
     match /chats/{chatId} {
       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;

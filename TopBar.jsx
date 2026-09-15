@@ -68,6 +68,15 @@ export default function TopBar({ profile, unreadNotifications = 0, onMenuClick }
           )}
         </Link>
 
+        <Link
+          to="/bookmarks"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-slate-300
+                     hover:bg-navy-cardAlt transition text-[18px]"
+          aria-label="Saved"
+        >
+          🔖
+        </Link>
+
         {/* Fullscreen toggle — desktop only, hidden on touch/mobile */}
         <button
           type="button"

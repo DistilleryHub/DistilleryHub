@@ -1178,6 +1178,7 @@ h1, h2, h3, h4,
 .empty-state {
   color: var(--muted) !important;
 }
+
 /* Share sheet / generic modal overlay */
 .modal-overlay {
   position: fixed;
