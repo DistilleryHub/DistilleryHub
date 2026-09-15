@@ -46,11 +46,16 @@ service cloud.firestore {
         // Lets followUser()/unfollowUser() (follows.js) bump a *different*
         // user's followerCount by exactly +1/-1 in the same batch as the
         // follows/{followId} write — nothing else on the doc can move
-        // through this branch.
+        // through this branch. Falls back to 0 when the doc has never had
+        // a followerCount field before (true for every user prior to their
+        // first follower) — reading a missing map key directly would error
+        // out this whole condition and silently deny the update.
         || (isSignedIn() &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followerCount']) &&
-            (request.resource.data.followerCount == resource.data.followerCount + 1 ||
-             request.resource.data.followerCount == resource.data.followerCount - 1));
+            (request.resource.data.followerCount ==
+               (('followerCount' in resource.data) ? resource.data.followerCount : 0) + 1 ||
+             request.resource.data.followerCount ==
+               (('followerCount' in resource.data) ? resource.data.followerCount : 0) - 1));
       allow delete: if isAdmin();
 
       // Saved posts/jobs/articles — private to the owner only.
