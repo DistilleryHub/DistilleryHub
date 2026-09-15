@@ -9,6 +9,7 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
+import { followUser, unfollowUser, listenMyFollowing } from './follows';
 import ShareSheet from './ShareSheet';
 
 function timeAgo(ts) {
@@ -95,10 +96,16 @@ export default function Feed() {
   const [scheduleWhen, setScheduleWhen] = useState('');
   const [myScheduledPosts, setMyScheduledPosts] = useState([]);
   const [shareItem, setShareItem] = useState(null);
+  const [followingIds, setFollowingIds] = useState(new Set());
 
   useEffect(() => {
     if (!currentUser) return;
     return listenBookmarks(currentUser.uid, (list) => setBookmarkIds(new Set(list.map((b) => b.id))));
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    return listenMyFollowing(currentUser.uid, setFollowingIds);
   }, [currentUser]);
 
   useEffect(() => {
@@ -346,6 +353,28 @@ export default function Feed() {
     await deleteDoc(doc(db, 'posts', post.id));
   }
 
+  async function handleFollowToggle(authorId) {
+    const wasFollowing = followingIds.has(authorId);
+    try {
+      if (wasFollowing) {
+        await unfollowUser(currentUser.uid, authorId);
+      } else {
+        await followUser(currentUser.uid, authorId);
+        notify({
+          toUserId: authorId,
+          type: 'follow',
+          message: `${currentProfile?.name || 'Someone'} started following you`,
+          link: `/profile/${currentUser.uid}`,
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
+    } catch (err) {
+      toast(err.message || 'Could not update follow');
+    }
+  }
+
   function renderMedia(imageURL, videoURL) {
     if (videoURL) {
       return (
@@ -453,6 +482,15 @@ export default function Feed() {
                 {post.sharedFrom ? 'shared a post · ' : ''}{timeAgo(post.createdAt)}
               </div>
             </div>
+            {post.authorId !== currentUser.uid && !post.sharedFrom && (
+              <button
+                type="button"
+                className={'btn btn-sm' + (followingIds.has(post.authorId) ? ' btn-ghost' : ' btn-primary')}
+                onClick={() => handleFollowToggle(post.authorId)}
+              >
+                {followingIds.has(post.authorId) ? 'Following' : '+ Follow'}
+              </button>
+            )}
             {post.authorId === currentUser.uid && (
               <button className="btn btn-ghost btn-sm" onClick={() => removePost(post)}>Delete</button>
             )}

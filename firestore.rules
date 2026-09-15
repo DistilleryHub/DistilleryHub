@@ -39,16 +39,36 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) &&
+      allow update: if (isOwner(userId) &&
         request.resource.data.isAdmin == resource.data.isAdmin &&
-        request.resource.data.blocked == resource.data.blocked
-        || isAdmin();
+        request.resource.data.blocked == resource.data.blocked)
+        || isAdmin()
+        // Lets followUser()/unfollowUser() (follows.js) bump a *different*
+        // user's followerCount by exactly +1/-1 in the same batch as the
+        // follows/{followId} write — nothing else on the doc can move
+        // through this branch.
+        || (isSignedIn() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followerCount']) &&
+            (request.resource.data.followerCount == resource.data.followerCount + 1 ||
+             request.resource.data.followerCount == resource.data.followerCount - 1));
       allow delete: if isAdmin();
 
       // Saved posts/jobs/articles — private to the owner only.
       match /bookmarks/{bookmarkId} {
         allow read, write: if isOwner(userId);
       }
+    }
+
+    // ===== Follows (one-way, LinkedIn-style "Follow" — separate from the
+    // mutual accept/reject Connect flow above) =====
+    match /follows/{followId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.followerId == request.auth.uid &&
+        request.resource.data.followedId != request.auth.uid &&
+        followId == (request.resource.data.followerId + '_' + request.resource.data.followedId);
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow update: if false;
     }
 
     // ===== Posts (feed) =====

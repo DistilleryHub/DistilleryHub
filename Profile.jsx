@@ -8,6 +8,7 @@ import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase'
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
+import { followUser, unfollowUser, listenIsFollowing } from './follows';
 
 export default function Profile() {
   const { uid } = useParams();
@@ -22,6 +23,12 @@ export default function Profile() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef(null);
   const isOwn = uid === currentUser?.uid;
+  const [isFollowing, setIsFollowing] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser || isOwn) return;
+    return listenIsFollowing(currentUser.uid, uid, setIsFollowing);
+  }, [currentUser, uid, isOwn]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
@@ -69,6 +76,27 @@ export default function Profile() {
 
   async function acceptRequest() {
     await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
+  }
+
+  async function handleFollowToggle() {
+    try {
+      if (isFollowing) {
+        await unfollowUser(currentUser.uid, uid);
+      } else {
+        await followUser(currentUser.uid, uid);
+        notify({
+          toUserId: uid,
+          type: 'follow',
+          message: `${currentProfile?.name || 'Someone'} started following you`,
+          link: `/profile/${currentUser.uid}`,
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
+    } catch (err) {
+      toast(err.message || 'Could not update follow');
+    }
   }
 
   function startEdit() {
@@ -157,10 +185,22 @@ export default function Profile() {
             <h2>{profile.name}</h2>
             {profile.headline && <div className="job-meta">{profile.headline}</div>}
             {profile.company && <div className="job-meta">{profile.company}{profile.location ? ` • ${profile.location}` : ''}</div>}
+            <div className="job-meta">
+              <strong>{profile.followerCount || 0}</strong> followers · <strong>{profile.followingCount || 0}</strong> following
+            </div>
             {profile.bio && <p className="job-description">{profile.bio}</p>}
             <div className="job-actions" style={{ marginTop: 10 }}>
               {isOwn && (
                 <button className="btn btn-ghost btn-sm" onClick={startEdit}>Edit profile</button>
+              )}
+              {!isOwn && (
+                <button
+                  type="button"
+                  className={'btn btn-sm' + (isFollowing ? ' btn-ghost' : ' btn-primary')}
+                  onClick={handleFollowToggle}
+                >
+                  {isFollowing ? 'Following' : '+ Follow'}
+                </button>
               )}
               {!isOwn && !conn && (
                 <button className="btn btn-primary btn-sm" onClick={sendRequest}>Connect</button>

@@ -7,6 +7,7 @@ import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
+import { followUser, unfollowUser, listenMyFollowing } from './follows';
 
 export default function Network() {
   const { currentUser, currentProfile } = useAuth();
@@ -14,6 +15,12 @@ export default function Network() {
   const [people, setPeople] = useState([]);
   const [connections, setConnections] = useState([]);
   const [search, setSearch] = useState('');
+  const [followingIds, setFollowingIds] = useState(new Set());
+
+  useEffect(() => {
+    if (!currentUser) return;
+    return listenMyFollowing(currentUser.uid, setFollowingIds);
+  }, [currentUser]);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
@@ -77,6 +84,28 @@ export default function Network() {
     }
   }
 
+  async function handleFollowToggle(person) {
+    try {
+      if (followingIds.has(person.id)) {
+        await unfollowUser(currentUser.uid, person.id);
+      } else {
+        await followUser(currentUser.uid, person.id);
+        notify({
+          toUserId: person.id,
+          type: 'follow',
+          message: `${currentProfile?.name || 'Someone'} started following you`,
+          link: `/profile/${currentUser.uid}`,
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
+    } catch (err) {
+      console.error('handleFollowToggle failed', err);
+      toast('Could not update follow');
+    }
+  }
+
   const visiblePeople = useMemo(() => {
     return people
       .filter((p) => p.id !== currentUser?.uid)
@@ -135,8 +164,15 @@ export default function Network() {
               <Link to={`/profile/${person.id}`} className="person-name">{person.name}</Link>
               {person.headline && <div className="person-headline">{person.headline}</div>}
               {person.company && <div className="person-company">{person.company}</div>}
+              <button
+                type="button"
+                className={'btn btn-sm btn-block' + (followingIds.has(person.id) ? ' btn-ghost' : ' btn-primary')}
+                onClick={() => handleFollowToggle(person)}
+              >
+                {followingIds.has(person.id) ? 'Following' : '+ Follow'}
+              </button>
               {!conn && (
-                <button className="btn btn-primary btn-sm btn-block" onClick={() => sendRequest(person)}>
+                <button className="btn btn-ghost btn-sm btn-block" onClick={() => sendRequest(person)}>
                   Connect
                 </button>
               )}
