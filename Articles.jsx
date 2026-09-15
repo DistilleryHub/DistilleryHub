@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
+import ShareSheet from './ShareSheet';
 
 const CATEGORIES = ['Distillation', 'Quality Control', 'Regulations', 'Equipment', 'Market Trends', 'Others'];
 
@@ -132,6 +133,7 @@ export default function Articles() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showDrafts, setShowDrafts] = useState(false);
   const [bookmarkIds, setBookmarkIds] = useState(new Set());
+  const [shareItem, setShareItem] = useState(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -324,6 +326,16 @@ export default function Articles() {
             >
               👍 {openArticle.likes?.length || 0}
             </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShareItem({
+                title: openArticle.title,
+                snippet: `by ${openArticle.authorName}`,
+                link: window.location.href,
+              })}
+            >
+              📤 Share
+            </button>
             {openArticle.authorId === currentUser.uid && (
               <button className="btn btn-ghost btn-sm" onClick={() => startEdit(openArticle)}>Edit</button>
             )}
@@ -349,6 +361,7 @@ export default function Articles() {
             currentProfile={currentProfile}
           />
         </div>
+        {shareItem && <ShareSheet item={shareItem} onClose={() => setShareItem(null)} />}
       </div>
     );
   }
@@ -476,6 +489,19 @@ export default function Articles() {
               >
                 {bookmarkIds.has(bookmarkDocId('article', article.id)) ? '🔖 Saved' : '🔖 Save'}
               </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShareItem({
+                    title: article.title,
+                    snippet: `by ${article.authorName}`,
+                    link: `${window.location.origin}${window.location.pathname}`,
+                  });
+                }}
+              >
+                📤 Share
+              </button>
               {article.authorId === currentUser.uid && (
                 <button
                   className="btn btn-ghost btn-sm"
@@ -496,6 +522,8 @@ export default function Articles() {
           </div>
         </div>
       ))}
+
+      {shareItem && <ShareSheet item={shareItem} onClose={() => setShareItem(null)} />}
     </div>
   );
-      }
+}
