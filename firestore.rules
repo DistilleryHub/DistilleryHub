@@ -60,6 +60,10 @@ service cloud.firestore {
          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likeCount']) &&
           request.resource.data.likes.toSet().difference(resource.data.likes.toSet())
             .union(resource.data.likes.toSet().difference(request.resource.data.likes.toSet()))
+            == [request.auth.uid].toSet()) ||
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shares']) &&
+          request.resource.data.shares.toSet().difference(resource.data.shares.toSet())
+            .union(resource.data.shares.toSet().difference(request.resource.data.shares.toSet()))
             == [request.auth.uid].toSet()));
       allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
 
@@ -97,14 +101,6 @@ service cloud.firestore {
     }
 
     // ===== Chats + messages =====
-    // NOTE: "who can message me" (Settings > Privacy) is currently enforced
-    // client-side only (Chat.jsx) — NOT here. Server-side enforcement needs
-    // connections/{connId} to use a deterministic ID (e.g. sorted "uidA_uidB")
-    // instead of addDoc's random ID, so a rule can get() a specific doc
-    // instead of running a query (rules can't query). That's a data-model
-    // change touching Network.jsx too, so it's left as a follow-up rather
-    // than shipped half-verified. Block enforcement above IS server-side,
-    // since `blocked` already lives at a fixed path (users/{uid}.blocked).
     match /chats/{chatId} {
       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
@@ -128,14 +124,14 @@ service cloud.firestore {
       }
     }
 
-    // ===== Scheduled messages =====
+    // ===== Scheduled messages (Chat) =====
     match /scheduledMessages/{msgId} {
       allow read, update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
     }
 
-   // ===== Scheduled posts (Feed) =====
-     match /scheduledPosts/{postId} {
+    // ===== Scheduled posts (Feed) =====
+    match /scheduledPosts/{postId} {
       allow read, update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
     }
