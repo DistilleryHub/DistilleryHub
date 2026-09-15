@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   collection, query, where, orderBy, onSnapshot, addDoc, doc, setDoc, updateDoc,
   deleteDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove,
@@ -126,6 +127,7 @@ export default function Chat() {
   const { currentUser, currentProfile } = useAuth();
   const { startCall } = useCall();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [people, setPeople] = useState([]);
   const [connections, setConnections] = useState([]);
   const [groupChats, setGroupChats] = useState([]);
@@ -1004,10 +1006,17 @@ export default function Chat() {
     return (
       <div className="chat-thread">
         <div className="chat-thread-header">
-          <div className="avatar">
+          <div
+            className="avatar"
+            onClick={() => activeChat.type === 'direct' && navigate(`/profile/${activeChat.person.id}`)}
+            style={{ cursor: activeChat.type === 'direct' ? 'pointer' : 'default' }}
+          >
             {photoURL ? <img src={photoURL} alt="" /> : (name?.[0] || '?')}
           </div>
-          <div>
+          <div
+            onClick={() => activeChat.type === 'direct' && navigate(`/profile/${activeChat.person.id}`)}
+            style={{ cursor: activeChat.type === 'direct' ? 'pointer' : 'default' }}
+          >
             <div className="chat-thread-name">{name}{isAdmin && ' 👑'}</div>
             {statusLabel && <div className="chat-thread-status">{statusLabel}</div>}
           </div>
