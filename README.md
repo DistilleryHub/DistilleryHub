@@ -1,4 +1,4 @@
-# DistilleryHub — React Migration (Phase 0: Setup)
+# DistilleryHub — DistilleryHub (Phase 0: Setup)
 
 Ye purane `index.html` (5000+ lines, vanilla JS) app ka **React + Vite** skeleton hai. Ab sirf structure/navigation ready hai — har feature page ek placeholder hai jo apne apne phase mein migrate hoga.
 
