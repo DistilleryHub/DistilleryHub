@@ -35,9 +35,9 @@ function buildNotifText(n) {
 }
 
 function clickUrlFor(n) {
-  if (n.convoId) return `/react-migration/?open=chat`;
-  if (n.jobId) return `/react-migration/?open=jobs:${n.jobId}`;
-  return `/react-migration/`;
+  if (n.convoId) return `/DistilleryHub/?open=chat`;
+  if (n.jobId) return `/DistilleryHub/?open=jobs:${n.jobId}`;
+  return `/DistilleryHub/`;
 }
 
 exports.onNotificationCreated = onDocumentCreated(

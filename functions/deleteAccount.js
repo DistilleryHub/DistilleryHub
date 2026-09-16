@@ -8,7 +8,7 @@ const db = admin.firestore();
 
 const GMAIL_EMAIL = 'thedistillerymaster@gmail.com';
 const GMAIL_APP_PASSWORD = 'whcefescunrxrmpa';
-const APP_URL = 'https://distilleryhub.github.io/react-migration';
+const APP_URL = 'https://distilleryhub.github.io/DistilleryHub';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
