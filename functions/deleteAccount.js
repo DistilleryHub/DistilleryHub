@@ -6,14 +6,37 @@ const crypto = require('crypto');
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-const GMAIL_EMAIL = 'thedistillerymaster@gmail.com';
-const GMAIL_APP_PASSWORD = 'whcefescunrxrmpa';
+// ⚠️ SECURITY FIX: the Gmail address + app password used to be hardcoded
+// here in plaintext (committed to source control — a live credential leak).
+// Both now come from Cloud Functions config, set via:
+//   firebase functions:config:set gmail.email="you@gmail.com" gmail.app_password="xxxxxxxxxxxxxxxx"
+// then redeploy. If you ever pasted the old password anywhere public
+// (GitHub, a shared zip, etc.), treat it as compromised: revoke it at
+// https://myaccount.google.com/apppasswords and generate a fresh one —
+// changing the code alone does NOT invalidate a password that already leaked.
+const cfg = functions.config().gmail || {};
+const GMAIL_EMAIL = cfg.email;
+const GMAIL_APP_PASSWORD = cfg.app_password;
 const APP_URL = 'https://distilleryhub.github.io/DistilleryHub';
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: GMAIL_EMAIL, pass: GMAIL_APP_PASSWORD },
-});
+// Lazy-init: fail with a clear config error at call time instead of
+// crashing function deploy/cold-start if config hasn't been set yet.
+let transporter = null;
+function getTransporter() {
+  if (!GMAIL_EMAIL || !GMAIL_APP_PASSWORD) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Email sending isn\u2019t configured on the server yet (set gmail.email / gmail.app_password via functions:config:set).'
+    );
+  }
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_EMAIL, pass: GMAIL_APP_PASSWORD },
+    });
+  }
+  return transporter;
+}
 
 function generateToken() {
   return crypto.randomBytes(24).toString('hex');
@@ -21,7 +44,7 @@ function generateToken() {
 
 async function sendConfirmEmail(email, name, uid, token, step) {
   const link = `${APP_URL}/confirm-delete?uid=${uid}&token=${token}`;
-  await transporter.sendMail({
+  await getTransporter().sendMail({
     from: `DistilleryHub <${GMAIL_EMAIL}>`,
     to: email,
     subject: `Account deletion confirmation (${step}/3) — DistilleryHub`,
