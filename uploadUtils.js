@@ -1,24 +1,21 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+import { apiFetch } from './firebase';
 
 /**
  * Uploads a file to Cloudinary via a server-signed, rate-limited request.
  * Replaces the old pattern (repeated across ~10 files) of posting straight
  * to Cloudinary with an unsigned upload_preset, which had no per-user
- * identity or rate limit attached at all — see functions/cloudinarySign.js
+ * identity or rate limit attached at all — see functions/api/cloudinarySign.js
  * for why that was a real abuse/cost risk, not just a style nitpick.
  */
 export async function uploadToCloudinary(file, resourceType = 'auto') {
-  const getSignature = httpsCallable(functions, 'getCloudinarySignature');
   let sig;
   try {
-    const res = await getSignature();
-    sig = res.data;
+    sig = await apiFetch('/api/cloudinarySign');
   } catch (err) {
-    if (err.code === 'functions/resource-exhausted') {
+    if (err.status === 429) {
       throw new Error('Upload limit reached — try again in a few minutes.');
     }
-    throw new Error('Could not start upload: ' + (err.message || err.code));
+    throw new Error('Could not start upload: ' + err.message);
   }
   const formData = new FormData();
   formData.append('file', file);

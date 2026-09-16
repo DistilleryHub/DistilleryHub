@@ -12,8 +12,7 @@ import {
   sendEmailVerification,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from './firebase';
+import { auth, db, apiFetch } from './firebase';
 
 const AuthContext = createContext(null);
 const googleProvider = new GoogleAuthProvider();
@@ -49,8 +48,7 @@ export function AuthProvider({ children }) {
   // legacy Firestore flag server-side before granting anything, so a
   // non-admin calling this just gets a permission-denied error.
   async function bootstrapAdminClaim() {
-    const bootstrap = httpsCallable(functions, 'bootstrapAdminClaimFromLegacyFlag');
-    await bootstrap();
+    await apiFetch('/api/admin/bootstrap-claim');
     await auth.currentUser.getIdToken(true); // force refresh so the new claim takes effect
     const tokenResult = await auth.currentUser.getIdTokenResult();
     setIsAdmin(tokenResult.claims.admin === true);
@@ -81,8 +79,7 @@ export function AuthProvider({ children }) {
     });
 
     if (mpin) {
-      const setMpinFn = httpsCallable(functions, 'setMpin');
-      await setMpinFn({ mpin });
+      await apiFetch('/api/setMpin', { body: { mpin } });
     }
 
     await sendEmailVerification(cred.user);
@@ -94,9 +91,9 @@ export function AuthProvider({ children }) {
 
   // Naya: Mobile + MPIN se login
   async function signinWithMpin({ mobile, mpin }) {
-    const mpinLogin = httpsCallable(functions, 'mpinLogin');
-    const result = await mpinLogin({ mobile, mpin });
-    await signInWithCustomToken(auth, result.data.token);
+    // Not signed in yet at this point, so no ID token to attach.
+    const result = await apiFetch('/api/mpinLogin', { body: { mobile, mpin }, auth: false });
+    await signInWithCustomToken(auth, result.token);
   }
 
   async function googleSignIn() {

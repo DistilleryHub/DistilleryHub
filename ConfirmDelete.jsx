@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+import { apiFetch } from './firebase';
 
 export default function ConfirmDelete() {
   const [params] = useSearchParams();
@@ -16,11 +15,10 @@ export default function ConfirmDelete() {
       setStatus('error'); setMessage('Link invalid hai.');
       return;
     }
-    const confirmDeletion = httpsCallable(functions, 'confirmAccountDeletion');
-    confirmDeletion({ uid, token })
+    apiFetch('/api/account/confirm-deletion', { body: { uid, token }, auth: false })
       .then((res) => {
         setStatus('success');
-        setMessage(`Confirmation ${res.data.confirmations} of 3 ho gaya hai.`);
+        setMessage(`Confirmation ${res.confirmations} of 3 ho gaya hai.`);
       })
       .catch((err) => {
         setStatus('error');

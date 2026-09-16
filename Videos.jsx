@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
-import { db, functions } from './firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db, apiFetch } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
@@ -186,8 +185,7 @@ export default function Videos() {
 
   function uploadVideoFile(file) {
     return new Promise((resolve, reject) => {
-      const getSignature = httpsCallable(functions, 'getCloudinarySignature');
-      getSignature().then(({ data: sig }) => {
+      apiFetch('/api/cloudinarySign').then((sig) => {
         const xhr = new XMLHttpRequest();
         const fd = new FormData();
         fd.append('file', file);
@@ -212,10 +210,10 @@ export default function Videos() {
         xhr.onerror = () => reject(new Error('Network error during upload'));
         xhr.send(fd);
       }).catch((err) => {
-        if (err.code === 'functions/resource-exhausted') {
+        if (err.status === 429) {
           reject(new Error('Upload limit reached — try again in a few minutes.'));
         } else {
-          reject(new Error('Could not start upload: ' + (err.message || err.code)));
+          reject(new Error('Could not start upload: ' + err.message));
         }
       });
     });
