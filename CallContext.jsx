@@ -303,8 +303,10 @@ export function CallProvider({ children }) {
       if (uid !== currentUser.uid) await connectToPeer(uid, call.id, call.callType);
     }
 
-    // Caller ko batao ki call accept ho gayi — iske baad hi ringback rukegi
-    await updateDoc(doc(db, 'calls', call.id), { status: 'active' }).catch(() => {});
+    // Caller ko batao ki call accept ho gayi — iske baad hi ringback rukegi.
+    // answeredAt bhi save karte hain (call log me Missed vs Incoming batane ke liye —
+    // ye field na ho toh history me pata hi nahi chalta ki ring hoke kat gayi ya utha li gayi thi).
+    await updateDoc(doc(db, 'calls', call.id), { status: 'active', answeredAt: serverTimestamp() }).catch(() => {});
   }, [currentUser, facingMode]);
 
   function endCallCleanup() {
@@ -331,7 +333,7 @@ export function CallProvider({ children }) {
     if (snap.exists()) {
       const remaining = (snap.data().participants || []).filter((u) => u !== currentUser.uid);
       if (remaining.length <= 1) {
-        await updateDoc(callRef, { status: 'ended' });
+        await updateDoc(callRef, { status: 'ended', endedAt: serverTimestamp() });
       } else {
         await updateDoc(callRef, { participants: arrayRemove(currentUser.uid) });
       }
@@ -348,7 +350,7 @@ export function CallProvider({ children }) {
       if (snap.exists()) {
         const remaining = (snap.data().participants || []).filter((u) => u !== currentUser.uid);
         if (remaining.length <= 1) {
-          await updateDoc(callRef, { status: 'ended' });
+          await updateDoc(callRef, { status: 'ended', endedAt: serverTimestamp() });
         } else {
           await updateDoc(callRef, { participants: arrayRemove(currentUser.uid) });
         }

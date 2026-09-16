@@ -132,6 +132,7 @@ export default function Chat() {
   const [connections, setConnections] = useState([]);
   const [groupChats, setGroupChats] = useState([]);
   const [directChatDocs, setDirectChatDocs] = useState([]);
+  const [callLog, setCallLog] = useState([]);
   const [listTab, setListTab] = useState('chats'); // 'chats' | 'groups' | 'calls'
   const [listSearch, setListSearch] = useState('');
   const [activeChat, setActiveChat] = useState(null);
@@ -216,6 +217,26 @@ export default function Chat() {
       const direct = all.filter((c) => c.type === 'direct');
       setDirectChatDocs(direct);
     });
+    return unsub;
+  }, [currentUser]);
+
+  // Ended call history for the "Calls" tab. Needs a composite index
+  // (participants array-contains + status == + createdAt orderBy) — if it's
+  // missing, Firestore logs an error with a one-click link to create it
+  // (same pattern as the signals/candidates index noted in CallContext.jsx).
+  useEffect(() => {
+    if (!currentUser) return;
+    const q = query(
+      collection(db, 'calls'),
+      where('participants', 'array-contains', currentUser.uid),
+      where('status', '==', 'ended'),
+      orderBy('createdAt', 'desc')
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => setCallLog(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (error) => console.error('DistilleryHub: call log listener failed', error)
+    );
     return unsub;
   }, [currentUser]);
 
@@ -1608,9 +1629,45 @@ export default function Chat() {
       )}
 
       {listTab === 'calls' && (
-        <div className="empty-state">
-          📞 Call history yahan aayega — iske liye CallContext.jsx bhejna padega taaki actual call logs (kisne kab call kiya, missed/answered) sahi se wire ho sakein.
-        </div>
+        <>
+          {callLog.length === 0 && (
+            <div className="empty-state">No calls yet.</div>
+          )}
+          {callLog.map((call) => {
+            const participants = call.participants || [];
+            const isGroup = participants.length > 2;
+            const otherId = !isGroup ? participants.find((id) => id !== currentUser.uid) : null;
+            const otherPerson = otherId ? people.find((p) => p.id === otherId) : null;
+            const matchedGroup = isGroup
+              ? groupChats.find((g) => {
+                  const a = [...(g.participants || [])].sort().join(',');
+                  const b = [...participants].sort().join(',');
+                  return a === b;
+                })
+              : null;
+            const isOutgoing = call.initiatedBy === currentUser.uid;
+            const isMissed = !isOutgoing && !call.answeredAt;
+            const label = isOutgoing ? 'Outgoing' : (isMissed ? 'Missed' : 'Incoming');
+            const displayName = isGroup ? (matchedGroup?.name || 'Group call') : (otherPerson?.name || 'Unknown');
+
+            return (
+              <div className="card person-row" key={call.id}>
+                <div className="avatar">
+                  {isGroup
+                    ? '👥'
+                    : (otherPerson?.photoURL ? <img src={otherPerson.photoURL} alt="" /> : (displayName?.[0] || '?'))}
+                </div>
+                <div className="person-info">
+                  <div className="person-name">{displayName}</div>
+                  <div className={'person-headline' + (isMissed ? ' call-log-missed' : '')}>
+                    {call.callType === 'video' ? '📹' : '📞'} {isOutgoing ? '↗' : '↙'} {label}
+                  </div>
+                </div>
+                <div className="chat-list-time">{timeAgo(call.createdAt)}</div>
+              </div>
+            );
+          })}
+        </>
       )}
     </div>
   );
