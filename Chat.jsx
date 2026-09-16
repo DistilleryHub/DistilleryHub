@@ -1842,7 +1842,7 @@ export default function Chat() {
       </div>
 
       {listTab !== 'calls' && (
-        <div className="card" style={{ padding: '10px 14px' }}>
+        <div className="chat-search-wrap">
           <input
             type="text"
             placeholder={listTab === 'groups' ? 'Search groups...' : 'Search chats...'}
@@ -1870,49 +1870,57 @@ export default function Chat() {
       )}
 
       {listTab === 'groups' && (
-        <>
+        <div className="chat-list">
           {filteredGroupChats.length === 0 && (
             <div className="empty-state">
               {groupChats.length === 0 ? 'No groups yet — tap + to start one.' : 'No groups match your search.'}
             </div>
           )}
           {filteredGroupChats.map((chat) => (
-            <div className="card person-row" key={chat.id} onClick={() => setActiveChat({ type: 'group', chat })}>
-              <div className="avatar">👥</div>
-              <div className="person-info">
-                <div className="person-name">{chat.name}</div>
-                <div className="person-headline">{chat.lastMessage || 'No messages yet'}</div>
+            <div className="chat-row" key={chat.id} onClick={() => setActiveChat({ type: 'group', chat })}>
+              <div className="chat-row-avatar">👥</div>
+              <div className="chat-row-body">
+                <div className="chat-row-top">
+                  <span className="chat-row-name">{chat.name}</span>
+                  {chat.lastMessageAt && <span className="chat-list-time">{timeAgo(chat.lastMessageAt)}</span>}
+                </div>
+                <div className="chat-row-bottom">
+                  <span className="chat-row-preview">{chat.lastMessage || 'No messages yet'}</span>
+                </div>
               </div>
-              {chat.lastMessageAt && <div className="chat-list-time">{timeAgo(chat.lastMessageAt)}</div>}
             </div>
           ))}
-        </>
+        </div>
       )}
 
       {listTab === 'chats' && (
-        <>
+        <div className="chat-list">
           {sortedDirectList.length === 0 && (
             <div className="empty-state">
               {connectedPeople.length === 0 ? 'Connect with people in Network to start chatting.' : 'No chats match your search.'}
             </div>
           )}
           {sortedDirectList.map(({ person, chatDoc }) => (
-            <div className="card person-row" key={person.id} onClick={() => setActiveChat({ type: 'direct', person })}>
-              <div className="avatar">
+            <div className="chat-row" key={person.id} onClick={() => setActiveChat({ type: 'direct', person })}>
+              <div className="chat-row-avatar">
                 {person.photoURL ? <img src={person.photoURL} alt="" /> : (person.name?.[0] || '?')}
               </div>
-              <div className="person-info">
-                <div className="person-name">{person.name}</div>
-                <div className="person-headline">{chatDoc?.lastMessage || person.headline || 'Tap to start chatting'}</div>
+              <div className="chat-row-body">
+                <div className="chat-row-top">
+                  <span className="chat-row-name">{person.name}</span>
+                  {chatDoc?.lastMessageAt && <span className="chat-list-time">{timeAgo(chatDoc.lastMessageAt)}</span>}
+                </div>
+                <div className="chat-row-bottom">
+                  <span className="chat-row-preview">{chatDoc?.lastMessage || person.headline || 'Tap to start chatting'}</span>
+                </div>
               </div>
-              {chatDoc?.lastMessageAt && <div className="chat-list-time">{timeAgo(chatDoc.lastMessageAt)}</div>}
             </div>
           ))}
-        </>
+        </div>
       )}
 
       {listTab === 'calls' && (
-        <>
+        <div className="chat-list">
           {callLog.length === 0 && (
             <div className="empty-state">No calls yet.</div>
           )}
@@ -1934,23 +1942,27 @@ export default function Chat() {
             const displayName = isGroup ? (matchedGroup?.name || 'Group call') : (otherPerson?.name || 'Unknown');
 
             return (
-              <div className="card person-row" key={call.id}>
-                <div className="avatar">
+              <div className="chat-row" key={call.id}>
+                <div className="chat-row-avatar">
                   {isGroup
                     ? '👥'
                     : (otherPerson?.photoURL ? <img src={otherPerson.photoURL} alt="" /> : (displayName?.[0] || '?'))}
                 </div>
-                <div className="person-info">
-                  <div className="person-name">{displayName}</div>
-                  <div className={'person-headline' + (isMissed ? ' call-log-missed' : '')}>
-                    {call.callType === 'video' ? '📹' : '📞'} {isOutgoing ? '↗' : '↙'} {label}
+                <div className="chat-row-body">
+                  <div className="chat-row-top">
+                    <span className="chat-row-name">{displayName}</span>
+                    <span className="chat-list-time">{timeAgo(call.createdAt)}</span>
+                  </div>
+                  <div className="chat-row-bottom">
+                    <span className={'chat-row-preview' + (isMissed ? ' call-log-missed' : '')}>
+                      {call.callType === 'video' ? '📹' : '📞'} {isOutgoing ? '↗' : '↙'} {label}
+                    </span>
                   </div>
                 </div>
-                <div className="chat-list-time">{timeAgo(call.createdAt)}</div>
               </div>
             );
           })}
-        </>
+        </div>
       )}
     </div>
   );
