@@ -64,7 +64,17 @@ service cloud.firestore {
     // ===== Users =====
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isOwner(userId);
+      // SECURITY FIX: creation previously had no field restrictions at all,
+      // so any signed-up user could write `isAdmin: true` straight into
+      // their own brand-new doc via the client SDK (bypassing the signup
+      // UI entirely — trivial with devtools). That flag could then be used
+      // to self-promote via bootstrapAdminClaimFromLegacyFlag in
+      // functions/index.js, which trusts this exact field. Now a new doc
+      // must have isAdmin absent or explicitly false; only setAdminClaim
+      // (Admin SDK, requires an existing admin's custom claim) can ever
+      // set it true afterwards, via the update rule below.
+      allow create: if isOwner(userId) &&
+        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false);
       // NOTE: this used to also require `blocked` to stay unchanged even
       // for the doc's own owner — that meant no user could ever actually
       // block anyone, since `blocked` lives on their own users/{uid} doc.
