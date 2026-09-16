@@ -3,7 +3,8 @@ import {
   collection, query, orderBy, onSnapshot, addDoc, updateDoc, setDoc, doc,
   arrayUnion, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
@@ -60,16 +61,7 @@ export default function Status() {
       let mediaType = '';
       if (media) {
         mediaType = media.type.startsWith('video') ? 'video' : 'image';
-        const fd = new FormData();
-        fd.append('file', media);
-        fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-        const res = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${mediaType}/upload`,
-          { method: 'POST', body: fd }
-        );
-        const data = await res.json();
-        if (!data.secure_url) throw new Error('Upload failed');
-        mediaURL = data.secure_url;
+        mediaURL = await uploadToCloudinary(media, mediaType);
       }
       await addDoc(collection(db, 'statuses'), {
         authorId: currentUser.uid,

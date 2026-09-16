@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import {
   collection, query, where, orderBy, onSnapshot, addDoc, doc, setDoc, updateDoc,
   deleteDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove,
+  limit, getDocs, writeBatch,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useCall } from './CallContext';
 import { useLanguage } from './LanguageContext';
 import { notify } from './notify';
+import ReportDialog from './ReportDialog';
 
 function chatIdFor(uidA, uidB) {
   return [uidA, uidB].sort().join('_');
@@ -28,22 +31,6 @@ function timeAgo(ts) {
 function formatScheduledFor(ts) {
   if (!ts?.toDate) return '';
   return ts.toDate().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-async function uploadToCloudinary(file, resourceType = 'auto') {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
-    { method: 'POST', body: formData }
-  );
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const reason = data?.error?.message || `HTTP ${res.status}`;
-    throw new Error(reason);
-  }
-  return data.secure_url;
 }
 
 const ATTACH_OPTIONS = [
@@ -86,6 +73,7 @@ const WALLPAPER_OPTIONS = [
 const BACKGROUND_CHECK_INTERVAL_MS = 20000;
 const PRESENCE_HEARTBEAT_MS = 30000;
 const ONLINE_THRESHOLD_MS = 60000;
+const MESSAGES_PAGE_SIZE = 40;
 
 // Renders *bold*, _italic_, ~strike~, "@mention" and "> quoted line" —
 // the same shortcut syntax WhatsApp recognizes while typing.
@@ -125,9 +113,9 @@ function renderFormattedText(text) {
 
 export default function Chat() {
   const { currentUser, currentProfile } = useAuth();
+  const navigate = useNavigate();
   const { startCall } = useCall();
   const { t } = useLanguage();
-  const navigate = useNavigate();
   const [people, setPeople] = useState([]);
   const [connections, setConnections] = useState([]);
   const [groupChats, setGroupChats] = useState([]);
@@ -165,6 +153,9 @@ export default function Chat() {
   // Forward message
   const [forwardingMessage, setForwardingMessage] = useState(null);
   const [showForwardPicker, setShowForwardPicker] = useState(false);
+  const [editingMessage, setEditingMessage] = useState(null); // { id, chatId }
+  const [reportingMessage, setReportingMessage] = useState(null);
+  const [reportingPerson, setReportingPerson] = useState(false);
 
   // Top bar (⋮) menu: search / wallpaper / clear chat / mute
   const [showChatMenu, setShowChatMenu] = useState(false);
@@ -222,8 +213,7 @@ export default function Chat() {
 
   // Ended call history for the "Calls" tab. Needs a composite index
   // (participants array-contains + status == + createdAt orderBy) — if it's
-  // missing, Firestore logs an error with a one-click link to create it
-  // (same pattern as the signals/candidates index noted in CallContext.jsx).
+  // missing, Firestore logs an error with a one-click link to create it.
   useEffect(() => {
     if (!currentUser) return;
     const q = query(
@@ -293,6 +283,7 @@ export default function Chat() {
   function handleTextChange(e) {
     const val = e.target.value;
     setText(val);
+    pingTyping();
     if (!activeChat || activeChat.type !== 'group') {
       setShowMentionPicker(false);
       return;
@@ -360,16 +351,70 @@ export default function Chat() {
     return people.find((p) => p.id === uid)?.name || 'Member';
   }
 
+  // Messages: only the latest MESSAGES_PAGE_SIZE are kept live via onSnapshot.
+  // Older pages are fetched once (not live) via loadOlderMessages() below and
+  // appended — this is the "don't load the whole history at once" fix.
+  const [olderDocs, setOlderDocs] = useState([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const liveDocsRef = useRef([]); // latest snap.docs from the live window, desc order
+  const olderDocsRef = useRef([]);
+  useEffect(() => { olderDocsRef.current = olderDocs; }, [olderDocs]);
+
   useEffect(() => {
     if (!activeChat || !currentUser) return;
     const { chatId } = getChatMeta();
-    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
+    setOlderDocs([]);
+    setHasMoreOlder(true);
+    liveDocsRef.current = [];
+    const q = query(
+      collection(db, 'chats', chatId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(MESSAGES_PAGE_SIZE)
+    );
     const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      liveDocsRef.current = snap.docs;
+      if (snap.docs.length < MESSAGES_PAGE_SIZE) setHasMoreOlder(false);
+      const merged = new Map();
+      [...snap.docs, ...olderDocsRef.current].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+      setMessages([...merged.values()].reverse());
     });
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat, currentUser]);
+
+  // Anchored on the oldest currently-shown message's timestamp (not a doc
+  // snapshot reference) — a snapshot-based anchor can develop a gap if the
+  // live window shifts (new messages arriving) between page loads; a
+  // timestamp anchor stays correct regardless.
+  async function loadOlderMessages() {
+    if (loadingOlder || !hasMoreOlder || !activeChat || !currentUser || messages.length === 0) return;
+    const oldestShown = messages[0];
+    if (!oldestShown?.createdAt) return;
+    setLoadingOlder(true);
+    try {
+      const { chatId } = getChatMeta();
+      const q = query(
+        collection(db, 'chats', chatId, 'messages'),
+        orderBy('createdAt', 'desc'),
+        where('createdAt', '<', oldestShown.createdAt),
+        limit(MESSAGES_PAGE_SIZE)
+      );
+      const snap = await getDocs(q);
+      if (snap.docs.length < MESSAGES_PAGE_SIZE) setHasMoreOlder(false);
+      setOlderDocs((prev) => {
+        const next = [...prev, ...snap.docs];
+        const merged = new Map();
+        [...liveDocsRef.current, ...next].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+        setMessages([...merged.values()].reverse());
+        return next;
+      });
+    } catch (err) {
+      console.error('loadOlderMessages failed', err);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   // Live chat doc (pinned message, admin list, disappearing timer, mute, etc).
   useEffect(() => {
@@ -397,8 +442,12 @@ export default function Chat() {
   }, [activeChat]);
 
   // Mark incoming messages as read (direct chats only — keeps group receipts simple).
+  // Respects Settings > Privacy > "Read receipts": if the reader has turned
+  // this off, we don't write readBy at all, so the sender never sees a read
+  // tick for them.
+  const readReceiptsEnabled = currentProfile?.settings?.readReceipts !== false;
   useEffect(() => {
-    if (!activeChat || activeChat.type !== 'direct' || !currentUser) return;
+    if (!activeChat || activeChat.type !== 'direct' || !currentUser || !readReceiptsEnabled) return;
     const { chatId } = getChatMeta();
     const unread = messages.filter(
       (m) => m.senderId !== currentUser.uid && !(m.readBy || []).includes(currentUser.uid)
@@ -409,18 +458,25 @@ export default function Chat() {
       }).catch(() => {});
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, activeChat, currentUser]);
+  }, [messages, activeChat, currentUser, readReceiptsEnabled]);
 
   // Presence heartbeat: keep our own lastSeen fresh while the app is open.
+  // Respects Settings > Privacy > "Show online status" — if off, we stop
+  // broadcasting presence entirely (and clear any stale doc from before).
+  const showOnlineStatus = currentProfile?.settings?.showOnlineStatus !== false;
   useEffect(() => {
     if (!currentUser) return;
+    if (!showOnlineStatus) {
+      deleteDoc(doc(db, 'presence', currentUser.uid)).catch(() => {});
+      return;
+    }
     const beat = () => {
       setDoc(doc(db, 'presence', currentUser.uid), { lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
     };
     beat();
     const interval = setInterval(beat, PRESENCE_HEARTBEAT_MS);
     return () => clearInterval(interval);
-  }, [currentUser]);
+  }, [currentUser, showOnlineStatus]);
 
   // Subscribe to the other participant's presence in a direct chat.
   useEffect(() => {
@@ -430,6 +486,74 @@ export default function Chat() {
     });
     return unsub;
   }, [activeChat]);
+
+  // Subscribe to the other participant's profile just for `blocked` /
+  // `settings.whoCanMessage` — used to hide the composer/call buttons on
+  // either side of a block, or when they only accept messages from
+  // connections. UX convenience only; real enforcement for blocking is in
+  // firestore.rules (isBlockedPair).
+  const [otherProfile, setOtherProfile] = useState(null);
+  useEffect(() => {
+    if (!activeChat || activeChat.type !== 'direct') { setOtherProfile(null); return; }
+    const unsub = onSnapshot(doc(db, 'users', activeChat.person.id), (snap) => {
+      setOtherProfile(snap.exists() ? snap.data() : null);
+    });
+    return unsub;
+  }, [activeChat]);
+
+  const isBlockedEitherWay = activeChat?.type === 'direct' && (
+    (currentProfile?.blocked || []).includes(activeChat.person.id) ||
+    (otherProfile?.blocked || []).includes(currentUser.uid)
+  );
+
+  const isRestrictedByWhoCanMessage = activeChat?.type === 'direct' &&
+    otherProfile?.settings?.whoCanMessage === 'connections' &&
+    !connectedPeople.some((p) => p.id === activeChat.person.id);
+
+  // ---- Typing indicator ----
+  // Throttled write (at most once every 2.5s) to chats/{chatId}.typing.{uid},
+  // plus an inactivity timer that clears it after 4s of no keystrokes.
+  // Piggy-backs on the existing chat-doc update permission (any participant
+  // can already update the chat doc per firestore.rules).
+  const lastTypingWriteRef = useRef(0);
+  const typingClearTimeoutRef = useRef(null);
+  const TYPING_THROTTLE_MS = 2500;
+  const TYPING_IDLE_MS = 4000;
+  const TYPING_STALE_MS = 6000; // reader-side: ignore a typing flag older than this
+
+  function clearTypingFlag() {
+    if (!activeChat || !currentUser) return;
+    const { chatId } = getChatMeta();
+    updateDoc(doc(db, 'chats', chatId), { [`typing.${currentUser.uid}`]: null }).catch(() => {});
+  }
+
+  function pingTyping() {
+    if (!activeChat || !currentUser) return;
+    if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
+    typingClearTimeoutRef.current = setTimeout(clearTypingFlag, TYPING_IDLE_MS);
+
+    const now = Date.now();
+    if (now - lastTypingWriteRef.current < TYPING_THROTTLE_MS) return;
+    lastTypingWriteRef.current = now;
+    const { chatId } = getChatMeta();
+    setDoc(doc(db, 'chats', chatId), { [`typing.${currentUser.uid}`]: serverTimestamp() }, { merge: true }).catch(() => {});
+  }
+
+  useEffect(() => {
+    return () => {
+      if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
+      clearTypingFlag();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChat]);
+
+  const typingUserIds = useMemo(() => {
+    const typing = chatMeta?.typing || {};
+    const now = Date.now();
+    return Object.entries(typing)
+      .filter(([uid, ts]) => uid !== currentUser?.uid && ts?.toMillis && (now - ts.toMillis()) < TYPING_STALE_MS)
+      .map(([uid]) => uid);
+  }, [chatMeta, currentUser]);
 
   // Listen to this user's own pending scheduled messages (across all chats).
   useEffect(() => {
@@ -458,21 +582,33 @@ export default function Chat() {
     async function checkDue() {
       const now = Date.now();
       const due = myScheduledMessages.filter((m) => (m.scheduledFor?.toMillis() || 0) <= now);
-      for (const m of due) {
+      for (let i = 0; i < due.length; i++) {
+        const m = due[i];
+        // If several are due in the same tick, space them out past the
+        // rateLimits gap (see firestore.rules) instead of firing all at
+        // once — otherwise only the first would get through.
+        if (i > 0) await new Promise((r) => setTimeout(r, 800));
         try {
-          await setDoc(doc(db, 'chats', m.chatId), {
+          const batch = writeBatch(db);
+          batch.set(doc(db, 'chats', m.chatId), {
             type: m.chatType,
             participants: m.participants,
             ...(m.chatType === 'group' ? { name: m.groupName } : {}),
             lastMessage: m.text,
             lastMessageAt: serverTimestamp(),
           }, { merge: true });
-          await addDoc(collection(db, 'chats', m.chatId, 'messages'), {
+          batch.set(doc(collection(db, 'chats', m.chatId, 'messages')), {
             senderId: currentUser.uid,
             text: m.text,
             createdAt: serverTimestamp(),
+            readBy: [],
+            reactions: {},
+            deletedFor: [],
           });
-          await updateDoc(doc(db, 'scheduledMessages', m.id), { sent: true, sentAt: serverTimestamp() });
+          batch.set(doc(db, 'rateLimits', currentUser.uid), { lastMessageAt: serverTimestamp() }, { merge: true });
+          batch.update(doc(db, 'scheduledMessages', m.id), { sent: true, sentAt: serverTimestamp() });
+          await batch.commit();
+          notifyOthers(m.participants, m.text, m.chatType === 'group', m.groupName);
         } catch (err) {
           console.error('Failed to send scheduled message', err);
         }
@@ -533,7 +669,8 @@ export default function Chat() {
     if (!body.trim() && !extra.mediaUrl && !extra.poll && !extra.event) return;
     const { chatId, participants } = getChatMeta();
     try {
-      await setDoc(doc(db, 'chats', chatId), {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'chats', chatId), {
         type: activeChat.type === 'group' ? 'group' : 'direct',
         participants,
         ...(activeChat.type === 'group' ? { name: activeChat.chat.name } : {}),
@@ -544,7 +681,8 @@ export default function Chat() {
       const expiresAt = disappearingSeconds > 0
         ? Timestamp.fromMillis(Date.now() + disappearingSeconds * 1000)
         : null;
-      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      const messageRef = doc(collection(db, 'chats', chatId, 'messages'));
+      batch.set(messageRef, {
         senderId: currentUser.uid,
         text: body,
         createdAt: serverTimestamp(),
@@ -554,10 +692,20 @@ export default function Chat() {
         ...(expiresAt ? { expiresAt } : {}),
         ...extra,
       });
+      // Rate-limit stamp: the messages `create` rule in firestore.rules
+      // checks that THIS doc's previous value is >700ms old before allowing
+      // the message, and (via getAfter) requires this exact write to happen
+      // in the same commit — so a client can't skip it to dodge the limit.
+      batch.set(doc(db, 'rateLimits', currentUser.uid), { lastMessageAt: serverTimestamp() }, { merge: true });
+      await batch.commit();
       notifyOthers(participants, body, activeChat.type === 'group', activeChat.chat?.name);
     } catch (err) {
       console.error('sendRawMessage failed', err);
-      alert('Message send failed: ' + err.code + ' — ' + err.message);
+      if (err.code === 'permission-denied') {
+        alert('You\u2019re sending messages too fast — slow down a bit.');
+      } else {
+        alert('Message send failed: ' + err.code + ' — ' + err.message);
+      }
       setText(body);
     }
   }
@@ -569,7 +717,28 @@ export default function Chat() {
       return;
     }
     const body = text.trim();
+
+    if (editingMessage) {
+      setText('');
+      if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
+      clearTypingFlag();
+      const { id, chatId } = editingMessage;
+      setEditingMessage(null);
+      try {
+        await updateDoc(doc(db, 'chats', chatId, 'messages', id), {
+          text: body,
+          edited: true,
+          editedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        alert('Edit failed: ' + (err.message || err));
+      }
+      return;
+    }
+
     setText('');
+    if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
+    clearTypingFlag();
     setShowMentionPicker(false);
     const mentions = extractMentionedUids(body);
     const extra = { ...(replyTo ? { replyTo } : {}), ...(mentions.length ? { mentions } : {}) };
@@ -792,6 +961,10 @@ export default function Chat() {
   }
 
   function handleStartCall(callType) {
+    if (activeChat.type === 'direct' && isBlockedEitherWay) {
+      alert('You can\u2019t call this user.');
+      return;
+    }
     const others = activeChat.type === 'direct'
       ? [activeChat.person.id]
       : activeChat.chat.participants.filter((id) => id !== currentUser.uid);
@@ -819,6 +992,42 @@ export default function Chat() {
     setForwardingMessage(m);
     setShowForwardPicker(true);
     setActiveMessageMenu(null);
+  }
+
+  // Edit window mirrors common chat-app convention (WhatsApp uses 15 min) —
+  // keeps someone from silently rewriting old conversation history. Enforced
+  // both here (UX) and in firestore.rules (real enforcement).
+  const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+  function canEditMessage(m) {
+    if (m.senderId !== currentUser.uid) return false;
+    if (m.attachmentType) return false;
+    if (!m.createdAt?.toMillis) return false;
+    return Date.now() - m.createdAt.toMillis() < EDIT_WINDOW_MS;
+  }
+
+  function startEdit(m) {
+    const { chatId } = getChatMeta();
+    setEditingMessage({ id: m.id, chatId });
+    setReplyTo(null);
+    setText(m.text || '');
+    setActiveMessageMenu(null);
+  }
+
+  function cancelEdit() {
+    setEditingMessage(null);
+    setText('');
+  }
+
+  async function toggleBlockPerson(personId, isCurrentlyBlocked) {
+    if (!isCurrentlyBlocked && !confirm('Block this person? They won\u2019t be able to message or call you.')) return;
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        blocked: isCurrentlyBlocked ? arrayRemove(personId) : arrayUnion(personId),
+      });
+    } catch (err) {
+      alert('Could not update block status: ' + (err.message || err));
+    }
   }
 
   async function reactToMessage(m, emoji) {
@@ -964,14 +1173,15 @@ export default function Chat() {
     const isGroup = target.type === 'group';
     const chatId = isGroup ? target.chat.id : chatIdFor(currentUser.uid, target.person.id);
     const participants = isGroup ? target.chat.participants : [currentUser.uid, target.person.id].sort();
-    await setDoc(doc(db, 'chats', chatId), {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'chats', chatId), {
       type: isGroup ? 'group' : 'direct',
       participants,
       ...(isGroup ? { name: target.chat.name } : {}),
       lastMessage: body || `[${extra.attachmentType || 'attachment'}]`,
       lastMessageAt: serverTimestamp(),
     }, { merge: true });
-    await addDoc(collection(db, 'chats', chatId, 'messages'), {
+    batch.set(doc(collection(db, 'chats', chatId, 'messages')), {
       senderId: currentUser.uid,
       text: body,
       createdAt: serverTimestamp(),
@@ -981,6 +1191,8 @@ export default function Chat() {
       forwarded: true,
       ...extra,
     });
+    batch.set(doc(db, 'rateLimits', currentUser.uid), { lastMessageAt: serverTimestamp() }, { merge: true });
+    await batch.commit();
     notifyOthers(participants, body, isGroup, target.chat?.name);
   }
 
@@ -1055,6 +1267,11 @@ export default function Chat() {
     const statusLabel = activeChat.type === 'direct'
       ? (otherPresence?.lastSeen ? (isOnline ? 'Online' : `Last seen ${timeAgo(otherPresence.lastSeen)} ago`) : '')
       : '';
+    const typingLabel = activeChat.type === 'direct'
+      ? (typingUserIds.includes(activeChat.person.id) ? 'typing…' : '')
+      : (typingUserIds.length > 0
+          ? `${typingUserIds.map((uid) => (people.find((p) => p.id === uid)?.name || 'Someone').split(' ')[0]).join(', ')} typing…`
+          : '');
     const wallpaper = WALLPAPER_OPTIONS.find((w) => w.key === wallpaperKey) || WALLPAPER_OPTIONS[0];
     const forwardTargets = [
       ...connectedPeople.map((p) => ({ type: 'direct', person: p, label: p.name })),
@@ -1076,7 +1293,11 @@ export default function Chat() {
             style={{ cursor: activeChat.type === 'direct' ? 'pointer' : 'default' }}
           >
             <div className="chat-thread-name">{name}{isAdmin && ' 👑'}</div>
-            {statusLabel && <div className="chat-thread-status">{statusLabel}</div>}
+            {(typingLabel || statusLabel) && (
+              <div className="chat-thread-status" style={typingLabel ? { color: '#4f7fff', fontStyle: 'italic' } : undefined}>
+                {typingLabel || statusLabel}
+              </div>
+            )}
           </div>
           <div className="chat-call-actions">
             {activeChat.type === 'group' && (
@@ -1095,6 +1316,20 @@ export default function Chat() {
             <button className="attach-item" onClick={() => { setShowDisappearingMenu((v) => !v); setShowChatMenu(false); }}>⏳ {t('chat.disappearing')}</button>
             <button className="attach-item" onClick={clearChatForMe}>🧹 {t('chat.clearChat')}</button>
             <button className="attach-item" onClick={() => { toggleMute(); setShowChatMenu(false); }}>{isMuted ? `🔔 ${t('chat.unmute')}` : `🔕 ${t('chat.mute')}`}</button>
+            {activeChat.type === 'direct' && (
+              <>
+                <button
+                  className="attach-item"
+                  onClick={() => {
+                    setShowChatMenu(false);
+                    toggleBlockPerson(activeChat.person.id, (currentProfile?.blocked || []).includes(activeChat.person.id));
+                  }}
+                >
+                  {(currentProfile?.blocked || []).includes(activeChat.person.id) ? '✅ Unblock' : '🚫 Block'} {activeChat.person.name}
+                </button>
+                <button className="attach-item" onClick={() => { setReportingPerson(true); setShowChatMenu(false); }}>🚩 Report {activeChat.person.name}</button>
+              </>
+            )}
           </div>
         )}
 
@@ -1240,6 +1475,13 @@ export default function Chat() {
         )}
 
         <div className="chat-messages" style={{ background: wallpaper.bg }}>
+          {hasMoreOlder && !searchQuery.trim() && (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <button className="btn btn-ghost btn-sm" onClick={loadOlderMessages} disabled={loadingOlder}>
+                {loadingOlder ? 'Loading…' : '⬆️ Load older messages'}
+              </button>
+            </div>
+          )}
           {visibleMessages.map((m) => {
             const isMine = m.senderId === currentUser.uid;
             const reactionEntries = Object.entries(m.reactions || {}).filter(([, uids]) => uids?.length);
@@ -1342,6 +1584,7 @@ export default function Chat() {
                     {(!m.attachmentType || m.attachmentType === 'location' || m.attachmentType === 'profile') && (
                       <div onClick={() => openMessageMenu(m)} style={{ cursor: 'pointer' }}>
                         {renderFormattedText(m.text)}
+                        {m.edited && <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 6 }}>(edited)</span>}
                       </div>
                     )}
                   </>
@@ -1372,9 +1615,15 @@ export default function Chat() {
                     <button className="btn btn-ghost btn-sm" onClick={() => setReactingTo(reactingTo === m.id ? null : m.id)}>😀 React</button>
                     {m.text && <button className="btn btn-ghost btn-sm" onClick={() => copyMessageText(m)}>📋 Copy</button>}
                     <button className="btn btn-ghost btn-sm" onClick={() => pinMessage(m)}>📌 Pin</button>
+                    {canEditMessage(m) && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(m)}>✏️ Edit</button>
+                    )}
                     <button className="btn btn-ghost btn-sm" onClick={() => deleteForMe(m)}>🗑️ Delete for me</button>
                     {isMine && (
                       <button className="btn btn-ghost btn-sm" onClick={() => deleteForEveryone(m)}>🚫 Delete for everyone</button>
+                    )}
+                    {!isMine && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setReportingMessage(m); setActiveMessageMenu(null); }}>🚩 Report</button>
                     )}
                   </div>
                 )}
@@ -1414,6 +1663,29 @@ export default function Chat() {
               </button>
             ))}
           </div>
+        )}
+
+        {reportingMessage && (
+          <ReportDialog
+            targetType="message"
+            targetId={reportingMessage.id}
+            extra={{
+              chatId: getChatMeta().chatId,
+              messageText: (reportingMessage.text || '').slice(0, 200),
+              messageSenderId: reportingMessage.senderId,
+            }}
+            onClose={() => setReportingMessage(null)}
+            onSubmitted={() => alert('Report submitted. Thanks for flagging this.')}
+          />
+        )}
+
+        {reportingPerson && activeChat.type === 'direct' && (
+          <ReportDialog
+            targetType="user"
+            targetId={activeChat.person.id}
+            onClose={() => setReportingPerson(false)}
+            onSubmitted={() => alert('Report submitted. Thanks for flagging this.')}
+          />
         )}
 
         {recording && (
@@ -1481,9 +1753,20 @@ export default function Chat() {
           </div>
         )}
 
-        {sendBlocked ? (
+        {editingMessage && (
+          <div className="reply-preview-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderLeft: '3px solid #ffa500', background: '#ffa50010', fontSize: 13 }}>
+            <span>✏️ Editing message</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEdit}>✕</button>
+          </div>
+        )}
+
+        {sendBlocked || isBlockedEitherWay || isRestrictedByWhoCanMessage ? (
           <div className="only-admins-notice" style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, opacity: 0.75 }}>
-            🔒 Only admins can send messages in this group.
+            {isBlockedEitherWay
+              ? '🚫 You can\u2019t message this user.'
+              : isRestrictedByWhoCanMessage
+                ? '🔒 This person only accepts messages from connections.'
+                : '🔒 Only admins can send messages in this group.'}
           </div>
         ) : (
           <>

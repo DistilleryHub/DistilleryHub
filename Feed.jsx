@@ -4,12 +4,13 @@ import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc,
   updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, Timestamp,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
-import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 import { followUser, unfollowUser, listenMyFollowing } from './follows';
+import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 import ShareSheet from './ShareSheet';
 
 function timeAgo(ts) {
@@ -203,22 +204,13 @@ export default function Feed() {
   }
 
   async function uploadMedia(file, type) {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    // Cloudinary needs the correct resource type endpoint for video uploads
     const resourceType = type === 'video' ? 'video' : 'image';
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
-      { method: 'POST', body: form }
-    );
-    const data = await res.json();
-    if (!data.secure_url) {
-      // Surface Cloudinary's actual error instead of a generic message
-      console.error('Cloudinary upload error:', data);
-      throw new Error(data?.error?.message || 'Media upload failed');
+    try {
+      return await uploadToCloudinary(file, resourceType);
+    } catch (err) {
+      console.error('Cloudinary upload error:', err);
+      throw err;
     }
-    return data.secure_url;
   }
 
   async function handleSchedule(e) {
@@ -482,6 +474,9 @@ export default function Feed() {
                 {post.sharedFrom ? 'shared a post · ' : ''}{timeAgo(post.createdAt)}
               </div>
             </div>
+            {post.authorId === currentUser.uid && (
+              <button className="btn btn-ghost btn-sm" onClick={() => removePost(post)}>Delete</button>
+            )}
             {post.authorId !== currentUser.uid && (
               <button
                 type="button"
@@ -490,9 +485,6 @@ export default function Feed() {
               >
                 {followingIds.has(post.authorId) ? 'Following' : '+ Follow'}
               </button>
-            )}
-            {post.authorId === currentUser.uid && (
-              <button className="btn btn-ghost btn-sm" onClick={() => removePost(post)}>Delete</button>
             )}
           </div>
 

@@ -4,7 +4,8 @@ import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, where,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
@@ -23,19 +24,6 @@ function timeAgo(ts) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
   return `${Math.floor(hrs / 24)}d`;
-}
-
-async function uploadToCloudinary(file) {
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-    { method: 'POST', body: fd }
-  );
-  const data = await res.json();
-  if (!data.secure_url) throw new Error('Image upload failed');
-  return data.secure_url;
 }
 
 function RfqBids({ rfq, currentUser, currentProfile, toast }) {

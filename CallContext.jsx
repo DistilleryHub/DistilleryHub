@@ -405,9 +405,93 @@ export function CallProvider({ children }) {
     }
   }, [facingMode]);
 
+  // ---- Call quality stats (RTT, packet loss, jitter, bitrate) ----
+  // Polls RTCPeerConnection.getStats() every 3s per peer — this is read-only
+  // introspection on connections we already own, no new permissions needed.
+  const [callStats, setCallStats] = useState({}); // { [peerUid]: { rtt, packetLossPct, jitterMs, bitrateKbps, quality } }
+  const prevStatsRef = useRef({}); // [peerUid] -> { bytesReceived, timestamp } for bitrate delta
+
+  function classifyQuality(pc, rtt, packetLossPct) {
+    if (['failed', 'disconnected', 'connecting', 'new'].includes(pc.connectionState)) return 'Reconnecting';
+    if (rtt == null && packetLossPct == null) return 'Good'; // no data yet, don't scare the user
+    if ((rtt != null && rtt > 0.4) || (packetLossPct != null && packetLossPct > 8)) return 'Poor';
+    if ((rtt != null && rtt > 0.15) || (packetLossPct != null && packetLossPct > 2)) return 'Good';
+    return 'Excellent';
+  }
+
+  useEffect(() => {
+    if (!activeCall || activeCall.status !== 'active') {
+      setCallStats({});
+      prevStatsRef.current = {};
+      return;
+    }
+    const interval = setInterval(async () => {
+      const entries = Object.entries(peersRef.current);
+      const results = {};
+      for (const [peerUid, pc] of entries) {
+        try {
+          const report = await pc.getStats();
+          let rtt = null, packetsLost = 0, packetsReceived = 0, jitterMs = null, bytesReceived = 0;
+          report.forEach((stat) => {
+            if (stat.type === 'candidate-pair' && stat.state === 'succeeded' && stat.currentRoundTripTime != null) {
+              rtt = stat.currentRoundTripTime;
+            }
+            if (stat.type === 'inbound-rtp' && !stat.isRemote && (stat.kind === 'video' || stat.kind === 'audio')) {
+              packetsLost += stat.packetsLost || 0;
+              packetsReceived += stat.packetsReceived || 0;
+              bytesReceived += stat.bytesReceived || 0;
+              if (stat.jitter != null) jitterMs = Math.round(stat.jitter * 1000);
+            }
+          });
+          const totalPackets = packetsLost + packetsReceived;
+          const packetLossPct = totalPackets > 0 ? (packetsLost / totalPackets) * 100 : null;
+
+          const prev = prevStatsRef.current[peerUid];
+          const now = Date.now();
+          let bitrateKbps = null;
+          if (prev && now > prev.timestamp) {
+            bitrateKbps = Math.round(((bytesReceived - prev.bytesReceived) * 8) / (now - prev.timestamp));
+          }
+          prevStatsRef.current[peerUid] = { bytesReceived, timestamp: now };
+
+          results[peerUid] = {
+            rtt, packetLossPct, jitterMs, bitrateKbps,
+            quality: classifyQuality(pc, rtt, packetLossPct),
+          };
+
+          // Adaptive quality: cap our outgoing video bitrate to this peer
+          // when their connection is struggling, restore when it recovers.
+          // This only throttles OUR upload to THIS peer — cheap and safe,
+          // no renegotiation needed (setParameters doesn't require a new
+          // offer/answer).
+          try {
+            const videoSender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+            if (videoSender) {
+              const params = videoSender.getParameters();
+              if (params.encodings?.length) {
+                const targetMaxBitrate = results[peerUid].quality === 'Poor' ? 150_000 : 2_500_000;
+                if (params.encodings[0].maxBitrate !== targetMaxBitrate) {
+                  params.encodings[0].maxBitrate = targetMaxBitrate;
+                  await videoSender.setParameters(params);
+                }
+              }
+            }
+          } catch (e) {
+            // setParameters can reject if the sender's transport isn't
+            // ready yet — non-fatal, just skip this tick.
+          }
+        } catch (e) {
+          results[peerUid] = { quality: 'Reconnecting' };
+        }
+      }
+      setCallStats(results);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeCall]);
+
   return (
     <CallContext.Provider value={{
-      activeCall, remoteStreams, localStream, muted, videoOff, incomingCall, facingMode,
+      activeCall, remoteStreams, localStream, muted, videoOff, incomingCall, facingMode, callStats,
       startCall, joinCall, leaveCall, declineCall, toggleMute, toggleVideo, switchCamera,
     }}>
       {children}

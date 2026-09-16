@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  collection, query, where, onSnapshot, addDoc, doc, updateDoc, serverTimestamp,
+  collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
@@ -14,13 +14,13 @@ export default function Network() {
   const toast = useToast();
   const [people, setPeople] = useState([]);
   const [connections, setConnections] = useState([]);
-  const [search, setSearch] = useState('');
   const [followingIds, setFollowingIds] = useState(new Set());
 
   useEffect(() => {
     if (!currentUser) return;
     return listenMyFollowing(currentUser.uid, setFollowingIds);
   }, [currentUser]);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
@@ -44,46 +44,6 @@ export default function Network() {
     return connections.find((c) => c.from === uid || c.to === uid);
   }
 
-  async function sendRequest(person) {
-    try {
-      await addDoc(collection(db, 'connections'), {
-        from: currentUser.uid, to: person.id, status: 'pending', createdAt: serverTimestamp(),
-      });
-      notify({
-        toUserId: person.id,
-        type: 'connection_request',
-        message: `${currentProfile?.name || 'Someone'} sent you a connection request`,
-        link: '/network',
-        fromUserId: currentUser.uid,
-        fromUserName: currentProfile?.name || 'Member',
-        fromUserPhoto: currentProfile?.photoURL || '',
-      });
-      toast(`Request sent to ${person.name}`);
-    } catch (err) {
-      console.error('sendRequest failed', err);
-      toast('Could not send request — check your connection and try again');
-    }
-  }
-
-  async function acceptRequest(conn) {
-    try {
-      await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
-      notify({
-        toUserId: conn.from,
-        type: 'connection_accept',
-        message: `${currentProfile?.name || 'Someone'} accepted your connection request`,
-        link: '/network',
-        fromUserId: currentUser.uid,
-        fromUserName: currentProfile?.name || 'Member',
-        fromUserPhoto: currentProfile?.photoURL || '',
-      });
-      toast('Request accepted');
-    } catch (err) {
-      console.error('acceptRequest failed', err);
-      toast('Could not accept request — check your connection and try again');
-    }
-  }
-
   async function handleFollowToggle(person) {
     try {
       if (followingIds.has(person.id)) {
@@ -103,6 +63,56 @@ export default function Network() {
     } catch (err) {
       console.error('handleFollowToggle failed', err);
       toast('Could not update follow');
+    }
+  }
+
+  async function sendRequest(person) {
+    try {
+      const connRef = doc(collection(db, 'connections'));
+      const batch = writeBatch(db);
+      batch.set(connRef, {
+        from: currentUser.uid, to: person.id, status: 'pending', createdAt: serverTimestamp(),
+      });
+      batch.set(doc(db, 'rateLimitsConnections', currentUser.uid), {
+        lastConnectionRequestAt: serverTimestamp(),
+      }, { merge: true });
+      await batch.commit();
+      notify({
+        toUserId: person.id,
+        type: 'connection_request',
+        message: `${currentProfile?.name || 'Someone'} sent you a connection request`,
+        link: '/network',
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
+      });
+      toast(`Request sent to ${person.name}`);
+    } catch (err) {
+      console.error('sendRequest failed', err);
+      if (err.code === 'permission-denied') {
+        toast('Too many requests too fast — wait a moment and try again');
+      } else {
+        toast('Could not send request — check your connection and try again');
+      }
+    }
+  }
+
+  async function acceptRequest(conn) {
+    try {
+      await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
+      notify({
+        toUserId: conn.from,
+        type: 'connection_accept',
+        message: `${currentProfile?.name || 'Someone'} accepted your connection request`,
+        link: '/network',
+        fromUserId: currentUser.uid,
+        fromUserName: currentProfile?.name || 'Member',
+        fromUserPhoto: currentProfile?.photoURL || '',
+      });
+      toast('Request accepted');
+    } catch (err) {
+      console.error('acceptRequest failed', err);
+      toast('Could not accept request — check your connection and try again');
     }
   }
 

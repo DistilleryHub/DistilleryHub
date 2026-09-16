@@ -58,12 +58,12 @@ export default function Admin() {
     setLoadingAnalytics(true);
     (async () => {
       try {
-        const [postsCount, jobsCount, articlesCount, groupsCount, shopsCount] = await Promise.all([
+        const [postsCount, jobsCount, articlesCount, groupsCount, storesCount] = await Promise.all([
           getCountFromServer(collection(db, 'posts')),
           getCountFromServer(collection(db, 'jobs')),
           getCountFromServer(collection(db, 'articles')),
           getCountFromServer(collection(db, 'groups')),
-          getCountFromServer(collection(db, 'shops')),
+          getCountFromServer(collection(db, 'stores')),
         ]);
 
         // "Top posts" is approximate on purpose: it looks at the 200 most
@@ -77,16 +77,21 @@ export default function Admin() {
           .sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0))
           .slice(0, 5);
 
-        let topShops = [];
+        // BUG FIX: this used to query a `shops` collection that doesn't
+        // exist anywhere in the app (Market.jsx/StoreDetail.jsx both use
+        // `stores`), and ordered by an `avgRating` field that `stores` docs
+        // don't have (no ratings/reviews feature exists yet) — so it always
+        // silently failed and showed "No rated shops yet". Fixed to the
+        // real collection, ordered by creation time since there's no
+        // rating data to sort by.
+        let recentStores = [];
         try {
-          const shopsSnap = await getDocs(
-            query(collection(db, 'shops'), orderBy('avgRating', 'desc'), limit(5))
+          const storesSnap = await getDocs(
+            query(collection(db, 'stores'), orderBy('createdAt', 'desc'), limit(5))
           );
-          topShops = shopsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        } catch (shopErr) {
-          // Index might not exist yet on some deployments — analytics
-          // should still render without this one panel.
-          console.error('top shops query failed', shopErr);
+          recentStores = storesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        } catch (storeErr) {
+          console.error('recent stores query failed', storeErr);
         }
 
         if (!cancelled) {
@@ -95,9 +100,9 @@ export default function Admin() {
             jobsCount: jobsCount.data().count,
             articlesCount: articlesCount.data().count,
             groupsCount: groupsCount.data().count,
-            shopsCount: shopsCount.data().count,
+            storesCount: storesCount.data().count,
             topPosts,
-            topShops,
+            recentStores,
           });
         }
       } catch (err) {
@@ -185,7 +190,7 @@ export default function Admin() {
                   <div>Jobs: <strong>{analytics.jobsCount}</strong></div>
                   <div>Articles: <strong>{analytics.articlesCount}</strong></div>
                   <div>Groups: <strong>{analytics.groupsCount}</strong></div>
-                  <div>Vendor shops: <strong>{analytics.shopsCount}</strong></div>
+                  <div>Vendor stores: <strong>{analytics.storesCount}</strong></div>
                 </div>
               </div>
 
@@ -204,15 +209,15 @@ export default function Admin() {
               </div>
 
               <div className="card">
-                <h3>Top vendor shops</h3>
-                {analytics.topShops.length === 0 && <div className="empty-state">No rated shops yet.</div>}
-                {analytics.topShops.map((s) => (
+                <h3>Newest vendor stores</h3>
+                {analytics.recentStores.length === 0 && <div className="empty-state">No stores yet.</div>}
+                {analytics.recentStores.map((s) => (
                   <div className="person-row" key={s.id}>
                     <div className="person-info">
                       <div className="person-name">{s.name}</div>
-                      <div className="person-headline">{s.reviewCount || 0} reviews</div>
+                      <div className="person-headline">{s.ownerName || ''}</div>
                     </div>
-                    <span className="job-applicants">⭐ {(s.avgRating || 0).toFixed(1)}</span>
+                    <span className="job-applicants">{s.createdAt?.toDate ? s.createdAt.toDate().toLocaleDateString() : ''}</span>
                   </div>
                 ))}
               </div>

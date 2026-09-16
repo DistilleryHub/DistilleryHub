@@ -4,7 +4,8 @@ import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc,
   updateDoc, arrayUnion, arrayRemove, serverTimestamp, increment, setDoc, getDoc,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
@@ -160,16 +161,7 @@ export default function GroupDetail() {
     try {
       let imageURL = '';
       if (image) {
-        const fd = new FormData();
-        fd.append('file', image);
-        fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-        const res = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-          { method: 'POST', body: fd }
-        );
-        const data = await res.json();
-        if (!data.secure_url) throw new Error('Image upload failed');
-        imageURL = data.secure_url;
+        imageURL = await uploadToCloudinary(image, 'image');
       }
       await addDoc(collection(db, 'groups', groupId, 'posts'), {
         authorId: currentUser.uid,

@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   collection, query, where, orderBy, onSnapshot, doc, updateDoc,
-  addDoc, serverTimestamp,
+  serverTimestamp, arrayUnion, arrayRemove, writeBatch,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import ReportDialog from './ReportDialog';
+import { followUser, unfollowUser, listenIsFollowing } from './follows';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
-import { followUser, unfollowUser, listenIsFollowing } from './follows';
 
 export default function Profile() {
   const { uid } = useParams();
@@ -18,12 +20,13 @@ export default function Profile() {
   const [posts, setPosts] = useState([]);
   const [connections, setConnections] = useState([]);
   const [editing, setEditing] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [form, setForm] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef(null);
   const isOwn = uid === currentUser?.uid;
-  const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
     if (!currentUser || isOwn) return;
@@ -59,9 +62,24 @@ export default function Profile() {
   const conn = connections.find((c) => c.from === uid || c.to === uid);
 
   async function sendRequest() {
-    await addDoc(collection(db, 'connections'), {
+    const connRef = doc(collection(db, 'connections'));
+    const batch = writeBatch(db);
+    batch.set(connRef, {
       from: currentUser.uid, to: uid, status: 'pending', createdAt: serverTimestamp(),
     });
+    batch.set(doc(db, 'rateLimitsConnections', currentUser.uid), {
+      lastConnectionRequestAt: serverTimestamp(),
+    }, { merge: true });
+    try {
+      await batch.commit();
+    } catch (err) {
+      if (err.code === 'permission-denied') {
+        toast('Too many requests too fast — wait a moment and try again');
+      } else {
+        toast('Could not send request');
+      }
+      return;
+    }
     notify({
       toUserId: uid,
       type: 'connection_request',
@@ -72,10 +90,6 @@ export default function Profile() {
       fromUserPhoto: currentProfile?.photoURL || '',
     });
     toast('Request sent');
-  }
-
-  async function acceptRequest() {
-    await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
   }
 
   async function handleFollowToggle() {
@@ -97,6 +111,21 @@ export default function Profile() {
     } catch (err) {
       toast(err.message || 'Could not update follow');
     }
+  }
+
+  async function toggleBlock(isCurrentlyBlocked) {
+    if (!isCurrentlyBlocked && !confirm('Block this person? They won\u2019t be able to message or call you.')) return;
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        blocked: isCurrentlyBlocked ? arrayRemove(uid) : arrayUnion(uid),
+      });
+    } catch (err) {
+      toast('Could not update block status');
+    }
+  }
+
+  async function acceptRequest() {
+    await updateDoc(doc(db, 'connections', conn.id), { status: 'accepted' });
   }
 
   function startEdit() {
@@ -129,16 +158,8 @@ export default function Profile() {
     setPhotoPreview(localUrl);
     setUploadingPhoto(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: 'POST', body: form }
-      );
-      const data = await res.json();
-      if (!data.secure_url) throw new Error('Photo upload failed');
-      await updateDoc(doc(db, 'users', uid), { photoURL: data.secure_url });
+      const secureUrl = await uploadToCloudinary(file, 'image');
+      await updateDoc(doc(db, 'users', uid), { photoURL: secureUrl });
       toast('Profile photo updated');
     } catch (err) {
       toast(err.message || 'Could not update photo');
@@ -185,10 +206,10 @@ export default function Profile() {
             <h2>{profile.name}</h2>
             {profile.headline && <div className="job-meta">{profile.headline}</div>}
             {profile.company && <div className="job-meta">{profile.company}{profile.location ? ` • ${profile.location}` : ''}</div>}
+            {profile.bio && <p className="job-description">{profile.bio}</p>}
             <div className="job-meta">
               <strong>{profile.followerCount || 0}</strong> followers · <strong>{profile.followingCount || 0}</strong> following
             </div>
-            {profile.bio && <p className="job-description">{profile.bio}</p>}
             <div className="job-actions" style={{ marginTop: 10 }}>
               {isOwn && (
                 <button className="btn btn-ghost btn-sm" onClick={startEdit}>Edit profile</button>
@@ -213,6 +234,17 @@ export default function Profile() {
               )}
               {!isOwn && conn?.status === 'accepted' && (
                 <Link className="btn btn-primary btn-sm" to="/chat">Message</Link>
+              )}
+              {!isOwn && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => toggleBlock((currentProfile?.blocked || []).includes(uid))}
+                >
+                  {(currentProfile?.blocked || []).includes(uid) ? '✅ Unblock' : '🚫 Block'}
+                </button>
+              )}
+              {!isOwn && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setReporting(true)}>🚩 Report</button>
               )}
             </div>
           </>
@@ -249,6 +281,15 @@ export default function Profile() {
           {post.imageURL && <img className="post-image" src={post.imageURL} alt="" />}
         </div>
       ))}
+
+      {reporting && (
+        <ReportDialog
+          targetType="user"
+          targetId={uid}
+          onClose={() => setReporting(false)}
+          onSubmitted={() => toast('Report submitted. Thanks for flagging this.')}
+        />
+      )}
     </div>
   );
 }

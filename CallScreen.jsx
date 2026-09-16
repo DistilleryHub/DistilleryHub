@@ -51,6 +51,32 @@ function CallTimer({ startedAt }) {
   return <span className="call-timer">{mm}:{ss}</span>;
 }
 
+const QUALITY_STYLES = {
+  Excellent: { color: '#3ddc84', dot: '🟢' },
+  Good: { color: '#f5c542', dot: '🟡' },
+  Poor: { color: '#e05555', dot: '🔴' },
+  Reconnecting: { color: '#e05555', dot: '🔄' },
+};
+
+function QualityBadge({ stats }) {
+  const quality = stats?.quality;
+  if (!quality) return null;
+  const style = QUALITY_STYLES[quality] || QUALITY_STYLES.Good;
+  const detail = [
+    stats.rtt != null ? `${Math.round(stats.rtt * 1000)}ms` : null,
+    stats.packetLossPct != null ? `${stats.packetLossPct.toFixed(1)}% loss` : null,
+  ].filter(Boolean).join(' · ');
+  return (
+    <span
+      className="call-quality-badge"
+      title={detail || undefined}
+      style={{ color: style.color, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+    >
+      {style.dot} {quality}
+    </span>
+  );
+}
+
 // Detects whether a MediaStream currently has audible sound, using the Web
 // Audio API's analyser node. Used to draw the "active speaker" highlight
 // ring around a tile in group calls. Threshold is tuned for normal speech
@@ -246,7 +272,7 @@ function OutgoingCallOverlay({ call, localStream, muted, videoOff, speakerOn, on
 // 1-on-1 active call — full remote video + local PiP (tap PiP to swap)
 // ---------------------------------------------------------------------
 function OneOnOneActiveLayout({
-  call, otherUid, remoteStreams, localStream, muted, videoOff, speakerOn,
+  call, otherUid, remoteStreams, localStream, muted, videoOff, speakerOn, callStats,
   onLeave, onToggleMute, onToggleVideo, onSwitchCamera, onToggleSpeaker,
 }) {
   const profile = useUserProfile(otherUid);
@@ -316,7 +342,10 @@ function OneOnOneActiveLayout({
 
       <div className="call-active-header">
         <h2 className="call-caller-name">{profile.name || 'DistilleryHub member'}</h2>
-        <CallTimer startedAt={startedAt} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <CallTimer startedAt={startedAt} />
+          <QualityBadge stats={callStats?.[otherUid]} />
+        </div>
       </div>
 
       {isVideoCall && pipStream && (
@@ -347,7 +376,7 @@ function OneOnOneActiveLayout({
 // ---------------------------------------------------------------------
 // Group active call — grid of tiles, active speaker highlighted
 // ---------------------------------------------------------------------
-function ParticipantTile({ uid, stream, isLocal, isVideoCall, speakerOn }) {
+function ParticipantTile({ uid, stream, isLocal, isVideoCall, speakerOn, stats }) {
   const profile = useUserProfile(uid);
   const videoRef = useRef(null);
   const audioRef = useRef(null);
@@ -380,13 +409,14 @@ function ParticipantTile({ uid, stream, isLocal, isVideoCall, speakerOn }) {
       )}
       <div className="call-grid-label">
         <span>{isLocal ? 'You' : (profile.name || 'Member')}</span>
+        {!isLocal && <QualityBadge stats={stats} />}
       </div>
     </div>
   );
 }
 
 function GroupActiveLayout({
-  call, otherUids, remoteStreams, localStream, muted, videoOff, speakerOn,
+  call, otherUids, remoteStreams, localStream, muted, videoOff, speakerOn, callStats,
   onLeave, onToggleMute, onToggleVideo, onSwitchCamera, onToggleSpeaker,
 }) {
   const { currentUser } = useAuth();
@@ -403,7 +433,7 @@ function GroupActiveLayout({
       <div className="call-grid">
         <ParticipantTile uid={currentUser.uid} stream={localStream} isLocal isVideoCall={isVideoCall} speakerOn={speakerOn} />
         {otherUids.map((uid) => (
-          <ParticipantTile key={uid} uid={uid} stream={remoteStreams[uid]} isLocal={false} isVideoCall={isVideoCall} speakerOn={speakerOn} />
+          <ParticipantTile key={uid} uid={uid} stream={remoteStreams[uid]} isLocal={false} isVideoCall={isVideoCall} speakerOn={speakerOn} stats={callStats?.[uid]} />
         ))}
       </div>
 
@@ -436,7 +466,7 @@ function ActiveCallOverlay(props) {
 // ---------------------------------------------------------------------
 export default function CallScreen() {
   const {
-    activeCall, remoteStreams, localStream, muted, videoOff, incomingCall,
+    activeCall, remoteStreams, localStream, muted, videoOff, incomingCall, callStats,
     joinCall, leaveCall, declineCall, toggleMute, toggleVideo, switchCamera,
   } = useCall();
 
@@ -469,6 +499,7 @@ export default function CallScreen() {
         muted={muted}
         videoOff={videoOff}
         speakerOn={speakerOn}
+        callStats={callStats}
         onLeave={leaveCall}
         onToggleMute={toggleMute}
         onToggleVideo={toggleVideo}

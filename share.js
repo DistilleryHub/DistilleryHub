@@ -1,4 +1,4 @@
-import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { notify } from './notify';
 
@@ -11,13 +11,14 @@ export function chatIdFor(uidA, uidB) {
 // Chat.jsx itself uses for a fresh direct chat).
 export async function shareToConnection(currentUser, currentProfile, targetUid, text) {
   const chatId = chatIdFor(currentUser.uid, targetUid);
-  await setDoc(doc(db, 'chats', chatId), {
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'chats', chatId), {
     type: 'direct',
     participants: [currentUser.uid, targetUid].sort(),
     lastMessage: text,
     lastMessageAt: serverTimestamp(),
   }, { merge: true });
-  await addDoc(collection(db, 'chats', chatId, 'messages'), {
+  batch.set(doc(collection(db, 'chats', chatId, 'messages')), {
     senderId: currentUser.uid,
     text,
     createdAt: serverTimestamp(),
@@ -25,6 +26,10 @@ export async function shareToConnection(currentUser, currentProfile, targetUid, 
     reactions: {},
     deletedFor: [],
   });
+  // Required by the messages `create` rule in firestore.rules — see
+  // Chat.jsx's sendRawMessage for the full explanation of this pattern.
+  batch.set(doc(db, 'rateLimits', currentUser.uid), { lastMessageAt: serverTimestamp() }, { merge: true });
+  await batch.commit();
   // So the recipient gets a push/in-app alert even if they don't have
   // Chat open — mirrors how every other feature notifies the other side.
   await notify({

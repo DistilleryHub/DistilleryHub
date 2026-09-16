@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db, functions } from './firebase';
+import { httpsCallable } from 'firebase/functions';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
@@ -185,26 +186,38 @@ export default function Videos() {
 
   function uploadVideoFile(file) {
     return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
-      xhr.upload.onprogress = (ev) => {
-        if (ev.lengthComputable) setUploadPct(Math.round((ev.loaded / ev.total) * 100));
-      };
-      xhr.onload = () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (data.secure_url) resolve(data.secure_url);
-          else {
-            console.error('Cloudinary video upload error:', data);
-            reject(new Error(data?.error?.message || 'Video upload failed'));
-          }
-        } catch (e) { reject(e); }
-      };
-      xhr.onerror = () => reject(new Error('Network error during upload'));
-      xhr.send(fd);
+      const getSignature = httpsCallable(functions, 'getCloudinarySignature');
+      getSignature().then(({ data: sig }) => {
+        const xhr = new XMLHttpRequest();
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('api_key', sig.apiKey);
+        fd.append('timestamp', sig.timestamp);
+        fd.append('signature', sig.signature);
+        fd.append('folder', sig.folder);
+        xhr.open('POST', `https://api.cloudinary.com/v1_1/${sig.cloudName}/video/upload`);
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) setUploadPct(Math.round((ev.loaded / ev.total) * 100));
+        };
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.secure_url) resolve(data.secure_url);
+            else {
+              console.error('Cloudinary video upload error:', data);
+              reject(new Error(data?.error?.message || 'Video upload failed'));
+            }
+          } catch (e) { reject(e); }
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.send(fd);
+      }).catch((err) => {
+        if (err.code === 'functions/resource-exhausted') {
+          reject(new Error('Upload limit reached — try again in a few minutes.'));
+        } else {
+          reject(new Error('Could not start upload: ' + (err.message || err.code)));
+        }
+      });
     });
   }
 

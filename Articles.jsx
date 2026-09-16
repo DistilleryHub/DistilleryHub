@@ -3,7 +3,8 @@ import {
   collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
   serverTimestamp, arrayUnion, arrayRemove, increment, writeBatch, where, getDocs,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
@@ -179,16 +180,7 @@ export default function Articles() {
     try {
       let coverImageURL = coverPreview && !cover ? coverPreview : '';
       if (cover) {
-        const fd = new FormData();
-        fd.append('file', cover);
-        fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-        const res = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-          { method: 'POST', body: fd }
-        );
-        const data = await res.json();
-        if (!data.secure_url) throw new Error('Cover upload failed');
-        coverImageURL = data.secure_url;
+        coverImageURL = await uploadToCloudinary(cover, 'image');
       }
 
       if (editingId) {

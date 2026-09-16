@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
-import { db, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from './firebase';
+import { db } from './firebase';
+import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
@@ -22,19 +23,6 @@ function fileIcon(name = '') {
   if (['zip', 'rar', '7z'].includes(ext)) return '🗜️';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return '🖼️';
   return '📄';
-}
-
-async function uploadToCloudinary(file) {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`,
-    { method: 'POST', body: formData }
-  );
-  if (!res.ok) throw new Error('Upload failed');
-  const data = await res.json();
-  return data.secure_url;
 }
 
 export default function FilesPage() {
@@ -59,7 +47,7 @@ export default function FilesPage() {
     if (!file) return;
     setUploading(true);
     try {
-      const url = await uploadToCloudinary(file);
+      const url = await uploadToCloudinary(file, 'raw');
       await addDoc(collection(db, 'files'), {
         name: file.name,
         size: file.size,
