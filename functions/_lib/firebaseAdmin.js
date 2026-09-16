@@ -33,14 +33,16 @@ export async function verifyIdToken(idToken, env) {
   return payload;
 }
 
-/** Reads the Authorization: Bearer <idToken> header and verifies it. Returns { uid, email } or null. */
+/** Reads the Authorization: Bearer <idToken> header and verifies it. Returns { uid, email, admin } or null.
+ * `admin` mirrors the ID token's custom claim (set via setCustomClaims below) — Firebase Auth
+ * automatically embeds custom claims into every ID token it issues, same as with the Admin SDK. */
 export async function requireAuth(request, env) {
   const authHeader = request.headers.get('Authorization') || '';
   const idToken = authHeader.replace(/^Bearer\s+/i, '');
   if (!idToken) return null;
   try {
     const payload = await verifyIdToken(idToken, env);
-    return { uid: payload.sub, email: payload.email };
+    return { uid: payload.sub, email: payload.email, admin: payload.admin === true };
   } catch {
     return null;
   }
@@ -51,10 +53,20 @@ async function getPrivateKey(env) {
   return importPKCS8(pem, 'RS256');
 }
 
-/** Google OAuth2 access token (service account) for calling Firestore's REST API. */
-export async function getAccessToken(env) {
+// One token covers every REST API this app calls (Firestore + FCM push +
+// Identity Toolkit for auth/claims) — simpler than minting a separate token
+// per scope, and Google allows multiple space-separated scopes in one JWT.
+const DEFAULT_SCOPES = [
+  'https://www.googleapis.com/auth/datastore',
+  'https://www.googleapis.com/auth/firebase.messaging',
+  'https://www.googleapis.com/auth/identitytoolkit',
+  'https://www.googleapis.com/auth/cloud-platform',
+].join(' ');
+
+/** Google OAuth2 access token (service account) for calling Firestore/FCM/Identity Toolkit REST APIs. */
+export async function getAccessToken(env, scope = DEFAULT_SCOPES) {
   const key = await getPrivateKey(env);
-  const jwt = await new SignJWT({ scope: 'https://www.googleapis.com/auth/datastore' })
+  const jwt = await new SignJWT({ scope })
     .setProtectedHeader({ alg: 'RS256' })
     .setIssuedAt()
     .setIssuer(env.FIREBASE_CLIENT_EMAIL)
@@ -104,6 +116,30 @@ export async function getAuthUser(env, accessToken, uid) {
   return user ? { uid: user.localId, email: user.email } : null;
 }
 
+/** Equivalent of admin.auth().getUser(uid).customClaims — reads current custom claims. */
+export async function getUserClaims(env, accessToken, uid) {
+  const res = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: [uid] }),
+  });
+  if (!res.ok) throw new Error('Auth lookup failed: ' + (await res.text()));
+  const data = await res.json();
+  const user = (data.users || [])[0];
+  if (!user) return null;
+  return user.customAttributes ? JSON.parse(user.customAttributes) : {};
+}
+
+/** Equivalent of admin.auth().setCustomUserClaims(uid, claims). */
+export async function setCustomClaims(env, accessToken, uid, claims) {
+  const res = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:update', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: uid, customAttributes: JSON.stringify(claims) }),
+  });
+  if (!res.ok) throw new Error('Set custom claims failed: ' + (await res.text()));
+}
+
 /** Equivalent of admin.auth().deleteUser(uid). */
 export async function deleteAuthUser(env, accessToken, uid) {
   const res = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:delete', {
@@ -124,6 +160,7 @@ function fsValueToJs(v) {
   if (v.timestampValue !== undefined) return new Date(v.timestampValue);
   if (v.nullValue !== undefined) return null;
   if (v.mapValue !== undefined) return fsDocToJs({ fields: v.mapValue.fields || {} });
+  if (v.arrayValue !== undefined) return (v.arrayValue.values || []).map(fsValueToJs);
   return undefined;
 }
 
@@ -250,4 +287,46 @@ export async function sha1Hex(input) {
 export function randomHex(byteLength) {
   const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ---------------- FCM HTTP v1 (replaces admin.messaging()) ----------------
+
+/**
+ * Sends one push message to one FCM registration token via the HTTP v1 API.
+ * Returns true on success. On failure (expired/invalid token, etc.) it
+ * returns false instead of throwing, so one bad token in a user's
+ * `fcmTokens` array never blocks the others.
+ */
+async function sendPushToOneToken(env, accessToken, fcmToken, { title, body, link }) {
+  try {
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            token: fcmToken,
+            notification: { title, body },
+            webpush: {
+              fcm_options: { link: link || '/DistilleryHub/' },
+              notification: { icon: '/DistilleryHub/icon-192.png' },
+            },
+          },
+        }),
+      }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Sends the same push to every token in `fcmTokens` (a user can have multiple devices). */
+export async function sendPushToTokens(env, accessToken, fcmTokens, { title, body, link }) {
+  const tokens = (fcmTokens || []).filter(Boolean);
+  const results = await Promise.all(
+    tokens.map((t) => sendPushToOneToken(env, accessToken, t, { title, body, link }))
+  );
+  return results.filter(Boolean).length; // how many succeeded
 }
