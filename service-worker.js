@@ -17,16 +17,16 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title || payload.data?.title || 'DistilleryHub';
   const options = {
     body: payload.notification?.body || payload.data?.body || '',
-    icon: '/react-migration/icon-192.png',
-    badge: '/react-migration/icon-192.png',
-    data: { url: payload.data?.url || '/react-migration/' },
+    icon: '/DistilleryHub/icon-192.png',
+    badge: '/DistilleryHub/icon-192.png',
+    data: { url: payload.data?.url || '/DistilleryHub/' },
   };
   self.registration.showNotification(title, options);
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/react-migration/';
+  const url = event.notification.data?.url || '/DistilleryHub/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
@@ -40,13 +40,13 @@ self.addEventListener('notificationclick', (event) => {
 // ---------------- Purana caching logic — bilkul waisa hi, unchanged ----------------
 
 const CACHE_NAME = 'distilleryhub-v2';
-const OFFLINE_URL = '/react-migration/';
+const OFFLINE_URL = '/DistilleryHub/';
 
 const PRECACHE_ASSETS = [
-  '/react-migration/',
-  '/react-migration/index.html',
-  '/react-migration/styles.css',
-  '/react-migration/manifest.json',
+  '/DistilleryHub/',
+  '/DistilleryHub/index.html',
+  '/DistilleryHub/styles.css',
+  '/DistilleryHub/manifest.json',
 ];
 
 self.addEventListener('install', (event) => {
