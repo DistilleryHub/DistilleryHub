@@ -44,11 +44,11 @@ exports.onNotificationCreated = onDocumentCreated(
   'notifications/{notifId}',
   async (event) => {
     const n = event.data.data();
-    if (!n || !n.userId) return;
+    if (!n || !n.toUserId) return;
 
     if (n.silent === true) return;
 
-    const userSnap = await db.collection('users').doc(n.userId).get();
+    const userSnap = await db.collection('users').doc(n.toUserId).get();
     const userData = userSnap.data();
     if (!userData) return;
 
@@ -76,7 +76,7 @@ exports.onNotificationCreated = onDocumentCreated(
       if (!r.success) badTokens.push(tokens[i]);
     });
     if (badTokens.length) {
-      await db.collection('users').doc(n.userId).update({
+      await db.collection('users').doc(n.toUserId).update({
         fcmTokens: admin.firestore.FieldValue.arrayRemove(...badTokens),
       });
     }
@@ -85,6 +85,10 @@ exports.onNotificationCreated = onDocumentCreated(
 
 // ---- Mobile + MPIN login ----
 exports.mpinLogin = require('./mpinAuth').mpinLogin;
+exports.setMpin = require('./mpinAuth').setMpin;
+
+// ---- Signed Cloudinary uploads (replaces the old unsigned preset) ----
+exports.getCloudinarySignature = require('./cloudinarySign').getCloudinarySignature;
 
 // ---- Account deletion (30-day safety flow) ----
 exports.requestAccountDeletion = require('./deleteAccount').requestAccountDeletion;
