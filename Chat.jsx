@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   collection, query, where, orderBy, onSnapshot, addDoc, doc, setDoc, updateDoc,
   deleteDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove,
@@ -12,6 +12,7 @@ import { useCall } from './CallContext';
 import { useLanguage } from './LanguageContext';
 import { notify } from './notify';
 import ReportDialog from './ReportDialog';
+import StatusTray from './StatusTray';
 
 function chatIdFor(uidA, uidB) {
   return [uidA, uidB].sort().join('_');
@@ -114,6 +115,7 @@ function renderFormattedText(text) {
 export default function Chat() {
   const { currentUser, currentProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { startCall } = useCall();
   const { t } = useLanguage();
   const [people, setPeople] = useState([]);
@@ -122,6 +124,14 @@ export default function Chat() {
   const [directChatDocs, setDirectChatDocs] = useState([]);
   const [callLog, setCallLog] = useState([]);
   const [listTab, setListTab] = useState('chats'); // 'chats' | 'groups' | 'calls'
+
+  // Bottom nav's "Calls" tab links to /chat?tab=calls so it opens straight
+  // into the existing Calls sub-tab instead of needing a separate route.
+  useEffect(() => {
+    const wanted = new URLSearchParams(location.search).get('tab');
+    setListTab(wanted === 'calls' || wanted === 'groups' ? wanted : 'chats');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
   const [listSearch, setListSearch] = useState('');
   const [activeChat, setActiveChat] = useState(null);
   const [chatMeta, setChatMeta] = useState(null); // live chat doc: pinned/admin/disappearing/mute/etc.
@@ -1809,6 +1819,8 @@ export default function Chat() {
 
   return (
     <div className="chat-page">
+      <StatusTray />
+
       <div className="chat-list-tabs">
         <button
           type="button"

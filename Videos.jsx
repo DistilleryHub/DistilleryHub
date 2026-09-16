@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp,
+  collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc,
+  arrayUnion, arrayRemove, serverTimestamp,
 } from 'firebase/firestore';
 import { db, apiFetch } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
-import { IconThumbsUp, IconComment, IconSend, IconVolume, IconVolumeMute } from './Icons';
+import { notify } from './notify';
+import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
+import ShareSheet from './ShareSheet';
+import { IconThumbsUp, IconComment, IconSend, IconVolume, IconVolumeMute, IconBookmark } from './Icons';
 
 function getYouTubeId(url) {
   const m = url?.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
@@ -24,17 +28,112 @@ function formatDuration(totalSeconds) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+function timeAgo(ts) {
+  if (!ts?.toDate) return '';
+  const diff = Date.now() - ts.toDate().getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
+
+/** Slide-up comments panel for one video — Firestore-backed, videos/{id}/comments subcollection. */
+function VideoCommentsSheet({ video, currentUser, currentProfile, onClose }) {
+  const [comments, setComments] = useState([]);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    const q = query(collection(db, 'videos', video.id, 'comments'), orderBy('createdAt', 'asc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return unsub;
+  }, [video.id]);
+
+  async function addComment(e) {
+    e.preventDefault();
+    if (!text.trim() || sending) return;
+    setSending(true);
+    try {
+      await addDoc(collection(db, 'videos', video.id, 'comments'), {
+        authorId: currentUser.uid,
+        authorName: currentProfile?.name || 'Member',
+        authorPhotoURL: currentProfile?.photoURL || '',
+        text: text.trim(),
+        createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, 'videos', video.id), { commentCount: (video.commentCount || 0) + 1 });
+      if (video.authorId !== currentUser.uid) {
+        notify({
+          toUserId: video.authorId,
+          type: 'comment',
+          message: `${currentProfile?.name || 'Someone'} commented on your video`,
+          link: '/videos',
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
+      setText('');
+    } catch (err) {
+      console.error('addComment failed', err);
+    }
+    setSending(false);
+  }
+
+  async function removeComment(c) {
+    if (c.authorId !== currentUser.uid) return;
+    await deleteDoc(doc(db, 'videos', video.id, 'comments', c.id));
+    await updateDoc(doc(db, 'videos', video.id), { commentCount: Math.max(0, (video.commentCount || 1) - 1) });
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="card"
+        style={{ maxWidth: 480, margin: '10vh auto 0', padding: 16, maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ margin: 0 }}>Comments</h3>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 10 }}>
+          {comments.length === 0 && <div className="empty-state">No comments yet — be the first.</div>}
+          {comments.map((c) => (
+            <div className="comment-row" key={c.id}>
+              <span className="comment-author">{c.authorName}</span> {c.text}
+              <span className="status-viewer-row-time" style={{ marginLeft: 6 }}>{timeAgo(c.createdAt)}</span>
+              {c.authorId === currentUser.uid && (
+                <button className="btn btn-ghost btn-sm" onClick={() => removeComment(c)}>✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <form className="chat-input-row" onSubmit={addComment}>
+          <input type="text" placeholder="Write a comment..." value={text} onChange={(e) => setText(e.target.value)} />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={sending || !text.trim()}>Send</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /** One full-bleed reel/video item — plays only while scrolled into view. */
-function VideoItem({ video, isOwner, onDelete, t }) {
+function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, onOpenComments, onOpenShare, onToggleSave }) {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const [inView, setInView] = useState(false);
   const [muted, setMuted] = useState(true);
   const [duration, setDuration] = useState(null);
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(video.likeCount || 0);
 
   const ytId = getYouTubeId(video.videoURL);
+  const likeCount = video.likes?.length || 0;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -56,11 +155,6 @@ function VideoItem({ video, isOwner, onDelete, t }) {
       el.pause();
     }
   }, [inView, ytId]);
-
-  function toggleLike() {
-    setLiked((v) => !v);
-    setLikeCount((c) => (liked ? c - 1 : c + 1));
-  }
 
   return (
     <section
@@ -119,21 +213,27 @@ function VideoItem({ video, isOwner, onDelete, t }) {
         )}
       </div>
 
-      {/* Right-side action rail — Like / Comment / Send / (Delete if owner) */}
+      {/* Right-side action rail — Like / Comment / Save / Share / (Delete if owner) */}
       <div className="absolute bottom-4 right-2 flex flex-col items-center gap-4">
-        <button type="button" onClick={toggleLike} className="flex flex-col items-center gap-1 text-white active:scale-90">
-          <span className={'flex h-10 w-10 items-center justify-center rounded-full bg-black/50 ' + (liked ? 'text-brand' : '')}>
+        <button type="button" onClick={() => onToggleLike(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
+          <span className={'flex h-10 w-10 items-center justify-center rounded-full bg-black/50 ' + (isLiked ? 'text-brand' : '')}>
             <IconThumbsUp className="w-5 h-5" />
           </span>
           <span className="text-[11px] font-semibold">{likeCount}</span>
         </button>
-        <button type="button" className="flex flex-col items-center gap-1 text-white active:scale-90">
+        <button type="button" onClick={() => onOpenComments(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
             <IconComment className="w-5 h-5" />
           </span>
           <span className="text-[11px] font-semibold">{video.commentCount || 0}</span>
         </button>
-        <button type="button" className="flex flex-col items-center gap-1 text-white active:scale-90">
+        <button type="button" onClick={() => onToggleSave(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
+          <span className={'flex h-10 w-10 items-center justify-center rounded-full bg-black/50 ' + (isSaved ? 'text-brand' : '')}>
+            <IconBookmark className="w-5 h-5" filled={isSaved} />
+          </span>
+          <span className="text-[11px] font-semibold">{isSaved ? 'Saved' : 'Save'}</span>
+        </button>
+        <button type="button" onClick={() => onOpenShare(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
             <IconSend className="w-5 h-5" />
           </span>
@@ -164,6 +264,9 @@ export default function Videos() {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadPreview, setUploadPreview] = useState('');
   const [uploadPct, setUploadPct] = useState(0);
+  const [bookmarkIds, setBookmarkIds] = useState(new Set());
+  const [commentsFor, setCommentsFor] = useState(null);
+  const [shareItem, setShareItem] = useState(null);
 
   function handleFilePick(e) {
     const file = e.target.files?.[0];
@@ -227,6 +330,11 @@ export default function Videos() {
     return unsub;
   }, []);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    return listenBookmarks(currentUser.uid, (list) => setBookmarkIds(new Set(list.map((b) => b.id))));
+  }, [currentUser]);
+
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!form.title.trim() || (!form.videoURL.trim() && !uploadFile)) return;
@@ -243,6 +351,8 @@ export default function Videos() {
         description: form.description,
         authorId: currentUser.uid,
         authorName: currentProfile?.name || 'Member',
+        likes: [],
+        commentCount: 0,
         createdAt: serverTimestamp(),
       });
       setForm({ title: '', videoURL: '', description: '' });
@@ -262,6 +372,49 @@ export default function Videos() {
     if (video.authorId !== currentUser.uid) return;
     if (!confirm('Delete this video?')) return;
     await deleteDoc(doc(db, 'videos', video.id));
+  }
+
+  async function toggleLike(video) {
+    const liked = video.likes?.includes(currentUser.uid);
+    try {
+      await updateDoc(doc(db, 'videos', video.id), {
+        likes: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+      });
+      if (!liked && video.authorId !== currentUser.uid) {
+        notify({
+          toUserId: video.authorId,
+          type: 'like',
+          message: `${currentProfile?.name || 'Someone'} liked your video`,
+          link: '/videos',
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
+    } catch (err) {
+      console.error('toggleLike (video) failed', err);
+      toast('Could not update like — check your connection');
+    }
+  }
+
+  function handleToggleSave(video) {
+    const id = bookmarkDocId('video', video.id);
+    toggleBookmark(currentUser.uid, bookmarkIds.has(id), {
+      type: 'video',
+      itemId: video.id,
+      title: video.title,
+      snippet: `by ${video.authorName || 'member'}`,
+      imageURL: '',
+      link: '/videos',
+    }).catch(() => toast('Could not update saved videos'));
+  }
+
+  function handleOpenShare(video) {
+    setShareItem({
+      title: video.title || 'A video on DistilleryHub',
+      snippet: `Shared by ${video.authorName || 'member'}`,
+      link: window.location.origin + window.location.pathname.replace(/\/$/, '') + '/videos',
+    });
   }
 
   return (
@@ -349,11 +502,27 @@ export default function Videos() {
             key={video.id}
             video={video}
             isOwner={video.authorId === currentUser?.uid}
+            isLiked={!!video.likes?.includes(currentUser?.uid)}
+            isSaved={bookmarkIds.has(bookmarkDocId('video', video.id))}
             onDelete={removeVideo}
-            t={t}
+            onToggleLike={toggleLike}
+            onOpenComments={(v) => setCommentsFor(v)}
+            onOpenShare={handleOpenShare}
+            onToggleSave={handleToggleSave}
           />
         ))}
       </div>
+
+      {commentsFor && (
+        <VideoCommentsSheet
+          video={commentsFor}
+          currentUser={currentUser}
+          currentProfile={currentProfile}
+          onClose={() => setCommentsFor(null)}
+        />
+      )}
+
+      {shareItem && <ShareSheet item={shareItem} onClose={() => setShareItem(null)} />}
     </div>
   );
 }

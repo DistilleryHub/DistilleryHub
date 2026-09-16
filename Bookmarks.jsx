@@ -6,6 +6,7 @@ import { listenBookmarks, toggleBookmark } from './bookmarks';
 const TABS = [
   { id: 'all', label: 'All' },
   { id: 'post', label: 'Posts' },
+  { id: 'video', label: 'Videos' },
   { id: 'job', label: 'Jobs' },
   { id: 'article', label: 'Articles' },
 ];

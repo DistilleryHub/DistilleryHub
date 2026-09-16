@@ -160,3 +160,28 @@ export function IconRepeat({ className = 'w-4 h-4' }) {
     </svg>
   );
 }
+
+export function IconPhone({ className = 'w-6 h-6' }) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z" />
+    </svg>
+  );
+}
+
+export function IconBookmark({ className = 'w-4 h-4', filled = false }) {
+  return (
+    <svg {...base} className={className} fill={filled ? 'currentColor' : 'none'}>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+export function IconPlus({ className = 'w-4 h-4' }) {
+  return (
+    <svg {...base} className={className}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}

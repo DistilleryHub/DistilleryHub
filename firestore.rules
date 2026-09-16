@@ -359,7 +359,24 @@ service cloud.firestore {
     match /videos/{videoId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+      // Owner can update anything; anyone else can only toggle their own
+      // like (same uid-symmetric-difference check as /posts likes above)
+      // or bump the denormalized commentCount when they add/remove a comment.
+      allow update: if isSignedIn() &&
+        (resource.data.authorId == request.auth.uid ||
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) &&
+          request.resource.data.likes.toSet().difference(resource.data.likes.toSet())
+            .union(resource.data.likes.toSet().difference(request.resource.data.likes.toSet()))
+            == [request.auth.uid].toSet()) ||
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount']));
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+        allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+        allow update: if false;
+      }
     }
     match /files/{fileId} {
       allow read: if isSignedIn();

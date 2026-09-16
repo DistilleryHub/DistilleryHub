@@ -1,5 +1,12 @@
 /* ===== Base + Theme ===== */
 :root {
+  /* Tells the browser this page fully handles its own dark/light styling,
+     so Chrome/Android's "Force Dark" auto-invert never kicks in and
+     re-colors elements (white search bars, washed-out text, etc.) on top
+     of our own theme. Overridden to `light` under [data-theme="light"]
+     below — every other theme (navy-dark, distillery-green, amber-dark)
+     is dark, so `dark` is the right default here. */
+  color-scheme: dark;
   --bg: #0b1325;
   --bg-elevated: #0f1729;
   --card-bg: #131e36;
@@ -24,6 +31,7 @@
 /* Light theme — clean white/black professional-network look.
    Toggled by setting data-theme="light" on <html> (see ThemeContext.jsx). */
 [data-theme="light"] {
+  color-scheme: light;
   --bg: #f4f2ee;
   --bg-elevated: #ffffff;
   --card-bg: #ffffff;
@@ -493,9 +501,20 @@ input::placeholder, textarea::placeholder { color: var(--muted-2); }
 .status-bar { display: flex; gap: 14px; overflow-x: auto; padding: 10px 2px; scrollbar-width: none; }
 .status-bar::-webkit-scrollbar { display: none; }
 .status-ring-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; flex-shrink: 0; width: 72px; }
-.status-ring { padding: 3px; border-radius: 50%; border: 2px solid var(--border); }
+.status-ring { position: relative; padding: 3px; border-radius: 50%; border: 2px solid var(--border); }
 .status-ring.unseen { border-color: var(--primary); background: conic-gradient(var(--primary), #7c5cff); }
+.status-ring.status-ring-add { border-style: dashed; }
+.status-ring-plus {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary); color: #fff; font-size: 14px; font-weight: 700;
+  border: 2px solid var(--card-bg); line-height: 1;
+}
 .status-ring-name { font-size: 11px; margin-top: 5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 72px; color: var(--muted); }
+
+/* Status tray embedded at the top of the Chat screen (Instagram DM-inbox style) */
+.chat-status-tray { padding: 6px 2px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
 
 .status-viewer { position: fixed; inset: 0; background: #000; z-index: 999; display: flex; flex-direction: column; }
 .status-progress-row { display: flex; gap: 4px; padding: 10px; }

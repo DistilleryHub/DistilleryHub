@@ -11,5 +11,7 @@
 }
 
 html, body, #root {
-  background-color: #0b1325;
+  /* Falls back to the navy-dark hex only if styles.css hasn't loaded yet —
+     normally this tracks whichever theme is active via the CSS variable. */
+  background-color: var(--bg, #0b1325);
 }

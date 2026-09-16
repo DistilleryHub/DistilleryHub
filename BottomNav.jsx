@@ -1,19 +1,23 @@
-import { NavLink } from 'react-router-dom';
-import { IconPlaySquare, IconStar, IconHome, IconUsers, IconMessage } from './Icons';
+import { NavLink, useLocation } from 'react-router-dom';
+import { IconPlaySquare, IconHome, IconUsers, IconMessage, IconPhone } from './Icons';
 
 /**
  * Fixed bottom navigation — 5 tabs, Feed centered (primary/highlighted):
- * Videos, Status, Feed, Network, Chat.
- * (Menu now lives in the TopBar's top-right icon; notifications bell is
- * also in the TopBar only.)
+ * Videos, Network, Feed, Chat, Calls.
+ * (Status no longer has its own tab — it now lives as a tray at the top of
+ * the Chat screen, like an Instagram DM inbox. Calls deep-links into Chat's
+ * existing "calls" sub-tab via ?tab=calls.
+ * Menu lives in the TopBar's top-right icon; notifications bell is also in
+ * the TopBar only.)
  */
 export default function BottomNav({ labels = {} }) {
+  const location = useLocation();
   const L = {
     videos: 'Videos',
-    status: 'Status',
-    feed: 'Feed',
     network: 'Network',
+    feed: 'Feed',
     chat: 'Chat',
+    calls: 'Calls',
     ...labels,
   };
 
@@ -21,6 +25,12 @@ export default function BottomNav({ labels = {} }) {
     'flex flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[10.5px] font-medium ' +
     'text-slate-400 transition active:scale-90 active:opacity-70';
   const tabActive = 'text-brand';
+
+  // Chat and Calls both point at /chat (which has its own Chats/Groups/Calls
+  // sub-tabs) — Calls appends ?tab=calls so Chat.jsx opens straight into the
+  // calls list, and is "active" only when that param is actually set.
+  const isCallsActive = location.pathname.startsWith('/chat') && new URLSearchParams(location.search).get('tab') === 'calls';
+  const isChatActive = location.pathname.startsWith('/chat') && !isCallsActive;
 
   return (
     <nav
@@ -33,9 +43,9 @@ export default function BottomNav({ labels = {} }) {
         {L.videos}
       </NavLink>
 
-      <NavLink to="/status" className={({ isActive }) => tabBase + (isActive ? ' ' + tabActive : '')}>
-        <IconStar className="w-6 h-6" />
-        {L.status}
+      <NavLink to="/network" className={({ isActive }) => tabBase + (isActive ? ' ' + tabActive : '')}>
+        <IconUsers className="w-6 h-6" />
+        {L.network}
       </NavLink>
 
       <NavLink to="/" end className={({ isActive }) => 'flex flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[10.5px] font-medium text-slate-400 transition active:scale-90 active:opacity-70'}>
@@ -54,14 +64,14 @@ export default function BottomNav({ labels = {} }) {
         )}
       </NavLink>
 
-      <NavLink to="/network" className={({ isActive }) => tabBase + (isActive ? ' ' + tabActive : '')}>
-        <IconUsers className="w-6 h-6" />
-        {L.network}
-      </NavLink>
-
-      <NavLink to="/chat" className={({ isActive }) => tabBase + (isActive ? ' ' + tabActive : '')}>
+      <NavLink to="/chat" className={tabBase + (isChatActive ? ' ' + tabActive : '')}>
         <IconMessage className="w-6 h-6" />
         {L.chat}
+      </NavLink>
+
+      <NavLink to="/chat?tab=calls" className={tabBase + (isCallsActive ? ' ' + tabActive : '')}>
+        <IconPhone className="w-6 h-6" />
+        {L.calls}
       </NavLink>
     </nav>
   );
