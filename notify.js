@@ -22,8 +22,8 @@
 //     fromUserPhoto: currentProfile?.photoURL,
 //   });
 //
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db, apiFetch } from './firebase';
+import { addDoc, collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { db, auth } from './firebase';
 
 export async function notify({
   toUserId,
@@ -37,8 +37,15 @@ export async function notify({
 }) {
   if (!toUserId) return;
   if (fromUserId && toUserId === fromUserId) return; // never notify yourself
+  const senderUid = auth.currentUser?.uid;
+  if (!senderUid) return; // must be signed in — matches firestore.rules
   try {
-    await addDoc(collection(db, 'notifications'), {
+    // Batched with the rate-limit stamp (firestore.rules requires both to
+    // land in the same commit — see rateLimitsNotifications above it) so a
+    // signed-in user can't spam another user with unlimited notifications.
+    const batch = writeBatch(db);
+    const notifRef = doc(collection(db, 'notifications'));
+    batch.set(notifRef, {
       toUserId,
       type,
       message,
@@ -50,18 +57,9 @@ export async function notify({
       createdAt: serverTimestamp(),
       ...extra,
     });
+    batch.set(doc(db, 'rateLimitsNotifications', senderUid), { lastNotifAt: serverTimestamp() }, { merge: true });
+    await batch.commit();
   } catch (err) {
     console.error('notify() failed:', err);
-  }
-
-  // The Firestore write above is what Notifications.jsx (the in-app list)
-  // reads — that stays exactly as before and needs no server code. This
-  // second call is only for the *push* notification (was previously an
-  // automatic Firestore-trigger Cloud Function — see functions/api/notify.js
-  // for why that had to move to an explicit call on Cloudflare).
-  try {
-    await apiFetch('/api/notify', { body: { toUserId, type, message, link, fromUserName } });
-  } catch (err) {
-    console.error('push notify() failed:', err); // in-app notification already saved either way
   }
 }

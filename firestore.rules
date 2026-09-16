@@ -50,6 +50,23 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == userId &&
         request.resource.data.lastConnectionRequestAt == request.time;
     }
+    // SECURITY FIX: notifications/{} and reports/{} below used to have no
+    // rate limit at all — any signed-in user could spam another user with
+    // unlimited fake notifications (each one also fires a real push via
+    // onNotificationCreated) or flood the admin reports queue. Same
+    // get()/getAfter() pattern as rateLimits/rateLimitsConnections above:
+    // the client must stamp its own doc here, atomically, in the same
+    // batch as the guarded write — it can't be skipped or pre-banked.
+    match /rateLimitsNotifications/{userId} {
+      allow read: if false;
+      allow write: if isSignedIn() && request.auth.uid == userId &&
+        request.resource.data.lastNotifAt == request.time;
+    }
+    match /rateLimitsReports/{userId} {
+      allow read: if false;
+      allow write: if isSignedIn() && request.auth.uid == userId &&
+        request.resource.data.lastReportAt == request.time;
+    }
     match /uploadRateLimits/{userId} {
       allow read, write: if false; // only getCloudinarySignature (Admin SDK) touches this
     }
@@ -274,8 +291,16 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      // SECURITY FIX: this had no field restriction, so ANY group member
+      // (not just the creator) could rewrite `createdBy` to their own uid
+      // via a normal update call — then use that to kick the real creator
+      // and every other member (members/{memberId} delete rule below
+      // trusts groups/{groupId}.createdBy). Now createdBy can only be set
+      // once, at creation, and can never change afterwards — matches how
+      // users/{uid}.isAdmin is locked down above for the same reason.
       allow update: if isSignedIn() &&
-        (resource.data.createdBy == request.auth.uid || isGroupMember(groupId)) || isAdmin();
+        request.resource.data.createdBy == resource.data.createdBy &&
+        (resource.data.createdBy == request.auth.uid || isGroupMember(groupId) || isAdmin());
       allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid || isAdmin();
 
       match /members/{memberId} {
@@ -389,7 +414,13 @@ service cloud.firestore {
       allow read, update: if isSignedIn() && resource.data.toUserId == request.auth.uid;
       allow create: if isSignedIn() &&
         request.resource.data.toUserId is string &&
-        request.resource.data.toUserId != request.auth.uid;
+        request.resource.data.toUserId != request.auth.uid &&
+        // Rate limit: ~2s gap per sender — stops notification-spam/harassment.
+        (
+          !exists(/databases/$(database)/documents/rateLimitsNotifications/$(request.auth.uid)) ||
+          request.time > get(/databases/$(database)/documents/rateLimitsNotifications/$(request.auth.uid)).data.lastNotifAt + duration.value(2, 's')
+        ) &&
+        getAfter(/databases/$(database)/documents/rateLimitsNotifications/$(request.auth.uid)).data.lastNotifAt == request.time;
       allow delete: if isSignedIn() && resource.data.toUserId == request.auth.uid;
     }
 
@@ -401,7 +432,14 @@ service cloud.firestore {
 
     // ===== Reports (users file, only admins read/manage) =====
     match /reports/{reportId} {
-      allow create: if isSignedIn() && request.resource.data.reportedBy == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.reportedBy == request.auth.uid &&
+        // Rate limit: ~5s gap per reporter — stops report-flood abuse
+        // while still allowing several genuine reports in a row.
+        (
+          !exists(/databases/$(database)/documents/rateLimitsReports/$(request.auth.uid)) ||
+          request.time > get(/databases/$(database)/documents/rateLimitsReports/$(request.auth.uid)).data.lastReportAt + duration.value(5, 's')
+        ) &&
+        getAfter(/databases/$(database)/documents/rateLimitsReports/$(request.auth.uid)).data.lastReportAt == request.time;
       allow read, update, delete: if isAdmin();
     }
   }
