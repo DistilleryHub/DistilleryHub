@@ -9,7 +9,7 @@
 // Also verify your sending domain/email in the Resend dashboard first.
 
 const FROM = 'DistilleryHub <thedistillerymaster@gmail.com>'; // must be a verified sender in Resend
-const APP_URL = 'https://distilleryhub.github.io/react-migration';
+const APP_URL = 'https://distilleryhub.github.io/DistilleryHub';
 
 export async function sendConfirmDeletionEmail(env, toEmail, name, uid, token, step) {
   const link = `${APP_URL}/confirm-delete?uid=${uid}&token=${token}`;
