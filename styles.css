@@ -19,6 +19,18 @@
   --primary-soft: rgba(79, 127, 255, 0.12);
   --danger: #f5576c;
   --border: #1e2b45;
+  /* Space-separated RGB triplets mirroring the hex vars above, so Tailwind
+     utility classes (see tailwind.config.js: colors.navy / colors.brand)
+     can render `rgb(var(--x-rgb) / <alpha-value>)` and therefore actually
+     re-theme live — instead of the old hardcoded hex values that always
+     painted navy-dark regardless of the theme picked in Settings. Every
+     [data-theme="..."] block below must keep these three in sync with its
+     own --bg / --card-bg / --card-hover / --border / --primary. */
+  --bg-rgb: 11 19 37;
+  --card-bg-rgb: 19 30 54;
+  --card-hover-rgb: 26 40 66;
+  --border-rgb: 30 43 69;
+  --primary-rgb: 79 127 255;
   --radius-sm: 8px;
   --radius: 14px;
   --radius-lg: 20px;
@@ -39,10 +51,22 @@
   --text: #1a1a1a;
   --muted: #56687a;
   --muted-2: #86929e;
-  --primary-soft: rgba(79, 127, 255, 0.10);
+  /* Was missing before — --primary/--primary-hover silently fell through to
+     :root's navy-dark blue, so picking "Light" never actually applied this
+     theme's own accent (#0369a1) unless the user also chose a custom
+     accent color. Now Light gets its own default primary like every other
+     theme, matching the swatch preview shown in Settings. */
+  --primary: #0369a1;
+  --primary-hover: #045a86;
+  --primary-soft: rgba(3, 105, 161, 0.10);
   --danger: #c0203a;
   --border: #e3e1dc;
   --shadow: 0 2px 10px rgba(0,0,0,0.08);
+  --bg-rgb: 244 242 238;
+  --card-bg-rgb: 255 255 255;
+  --card-hover-rgb: 243 242 239;
+  --border-rgb: 227 225 220;
+  --primary-rgb: 3 105 161;
 }
 [data-theme="light"] .btn-ghost { color: var(--muted); border-color: var(--border); }
 [data-theme="light"] ::selection { background: var(--primary-soft); }
@@ -63,6 +87,11 @@
   --primary-soft: rgba(79, 127, 255, 0.12);
   --danger: #f5576c;
   --border: #1e2b45;
+  --bg-rgb: 11 19 37;
+  --card-bg-rgb: 19 30 54;
+  --card-hover-rgb: 26 40 66;
+  --border-rgb: 30 43 69;
+  --primary-rgb: 79 127 255;
 }
 
 /* Distillery Green — industrial bio-ethanol emerald theme. */
@@ -79,6 +108,11 @@
   --primary-soft: rgba(16, 185, 129, 0.14);
   --danger: #f5576c;
   --border: #1e4a3a;
+  --bg-rgb: 7 26 20;
+  --card-bg-rgb: 15 46 35;
+  --card-hover-rgb: 22 58 44;
+  --border-rgb: 30 74 58;
+  --primary-rgb: 16 185 129;
 }
 
 /* Amber Dark — industrial charcoal & amber theme. */
@@ -95,6 +129,11 @@
   --primary-soft: rgba(245, 158, 11, 0.14);
   --danger: #f5576c;
   --border: #3a2f1a;
+  --bg-rgb: 26 21 8;
+  --card-bg-rgb: 38 32 21;
+  --card-hover-rgb: 47 39 26;
+  --border-rgb: 58 47 26;
+  --primary-rgb: 245 158 11;
 }
 
 * { box-sizing: border-box; }

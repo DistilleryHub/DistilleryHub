@@ -9,17 +9,25 @@ export default {
   theme: {
     extend: {
       colors: {
-        // DistilleryHub navy dark theme
+        // Wired to the live CSS custom properties from styles.css /
+        // ThemeContext.jsx (--bg-rgb, --card-bg-rgb, etc.), NOT hardcoded
+        // hex. Previously these were fixed to the navy-dark palette, so
+        // any component using e.g. `bg-navy-card` or `text-brand` (BottomNav,
+        // TopBar, MainLayout, PostCard, Videos, App) stayed navy-dark
+        // forever no matter which theme was picked in Settings — that was
+        // the permanent theme-color bug. The `rgb(var(...) / <alpha-value>)`
+        // form is what lets Tailwind's opacity modifiers (e.g. `/95`, `/10`)
+        // keep working on top of a variable color.
         navy: {
-          bg: '#0b1325',        // page background
-          card: '#131e36',      // card / surface
-          cardAlt: '#1e293b',   // alternate surface (modals, dropdowns)
-          border: '#1e2b45',    // subtle card border (~ slate-800 on navy)
+          bg: 'rgb(var(--bg-rgb) / <alpha-value>)',
+          card: 'rgb(var(--card-bg-rgb) / <alpha-value>)',
+          cardAlt: 'rgb(var(--card-hover-rgb) / <alpha-value>)',
+          border: 'rgb(var(--border-rgb) / <alpha-value>)',
         },
         brand: {
-          DEFAULT: '#4f7fff',
-          hover: '#3d6bef',
-          soft: 'rgba(79, 127, 255, 0.12)',
+          DEFAULT: 'rgb(var(--primary-rgb) / <alpha-value>)',
+          hover: 'var(--primary-hover)',
+          soft: 'var(--primary-soft)',
         },
       },
       fontFamily: {

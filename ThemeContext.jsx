@@ -53,6 +53,13 @@ function hexToRgb(hex) {
   return m ? `${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}` : '79, 127, 255';
 }
 
+// Space-separated variant (no commas) — required by Tailwind's
+// `rgb(var(--x-rgb) / <alpha-value>)` color syntax (see tailwind.config.js).
+function hexToRgbSpace(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? `${parseInt(m[1], 16)} ${parseInt(m[2], 16)} ${parseInt(m[3], 16)}` : '79 127 255';
+}
+
 // Old installs may still have 'dark' or 'light' saved from before the
 // 4-theme system shipped. Migrate 'dark' -> 'navy-dark' transparently so
 // nobody's saved preference silently breaks or resets.
@@ -76,6 +83,10 @@ function applyAccent(hex) {
   document.documentElement.style.setProperty('--primary', hex);
   document.documentElement.style.setProperty('--primary-hover', hex);
   document.documentElement.style.setProperty('--primary-soft', `rgba(${hexToRgb(hex)}, 0.12)`);
+  // Keep the RGB-triplet var in sync too, or Tailwind's `brand` color
+  // (rgb(var(--primary-rgb) / <alpha-value>)) would silently keep showing
+  // the previous/theme-default accent after a custom one is picked.
+  document.documentElement.style.setProperty('--primary-rgb', hexToRgbSpace(hex));
 }
 
 function applyCompact(isCompact) {

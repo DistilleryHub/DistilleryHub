@@ -7,7 +7,20 @@ if (savedTheme === 'dark') savedTheme = 'navy-dark'; // migrate pre-4-theme inst
 if (!VALID_THEMES.includes(savedTheme)) savedTheme = 'navy-dark';
 document.documentElement.setAttribute('data-theme', savedTheme);
 const savedAccent = localStorage.getItem('dh-accent');
-if (savedAccent) document.documentElement.style.setProperty('--primary', savedAccent);
+if (savedAccent) {
+  document.documentElement.style.setProperty('--primary', savedAccent);
+  // Also seed the RGB-triplet var Tailwind's `brand` color depends on
+  // (see tailwind.config.js), so the very first paint already matches —
+  // without this, bg-brand/text-brand would flash the theme's default
+  // accent for a frame before ThemeContext's effect catches up.
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(savedAccent);
+  if (m) {
+    document.documentElement.style.setProperty(
+      '--primary-rgb',
+      `${parseInt(m[1], 16)} ${parseInt(m[2], 16)} ${parseInt(m[3], 16)}`
+    );
+  }
+}
 const savedCompact = localStorage.getItem('dh-compact') === '1';
 if (savedCompact) document.documentElement.style.setProperty('--radius', '10px');
 import ReactDOM from 'react-dom/client';
