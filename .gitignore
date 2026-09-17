@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+cron-worker/src/node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Env files — never commit real secrets/config
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+
+# Wrangler local state
+.wrangler/
