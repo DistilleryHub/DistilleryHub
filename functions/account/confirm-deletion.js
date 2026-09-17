@@ -3,7 +3,7 @@
 // Route: POST /api/account/confirm-deletion   body: { uid, token }
 // (No auth required — this is the link the user clicks from email, same as the original.)
 
-import { getAccessToken, fsGetDoc, fsMergeDoc, jsonResponse, randomHex } from '../../_lib/firebaseAdmin.js';
+import { getAccessToken, fsGetDoc, fsMergeDoc, jsonResponse, randomHex } from '../_lib/firebaseAdmin.js';
 
 export async function onRequestPost({ request, env }) {
   try {
