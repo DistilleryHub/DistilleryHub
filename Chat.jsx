@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   collection, query, where, orderBy, onSnapshot, addDoc, doc, setDoc, updateDoc,
@@ -1410,7 +1411,7 @@ export default function Chat() {
     return (
       <div className="chat-thread">
         {modalElement}
-        {mediaPreview && (
+        {mediaPreview && createPortal(
           <div style={{
             position: 'fixed', inset: 0, background: '#000', zIndex: 1000,
             display: 'flex', flexDirection: 'column',
@@ -1491,7 +1492,8 @@ export default function Chat() {
                   background: '#4f7fff', color: '#fff', fontSize: 18,
                 }}>➤</button>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
         <div className="chat-thread-header">
           <div
