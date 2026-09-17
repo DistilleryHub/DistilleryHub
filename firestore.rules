@@ -164,7 +164,19 @@ service cloud.firestore {
     match /statuses/{statusId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
+      // Owner can update anything; anyone else viewing this status can only
+      // add their own uid to viewedBy (StatusViewer.jsx's markViewed) —
+      // same one-sided arrayUnion pattern as /videos likes, except viewedBy
+      // only ever grows (no "un-view"), so it's a straight one-way diff
+      // check rather than a symmetric union/difference like a toggleable
+      // like. Without this, only the author could ever write viewedBy, so
+      // every viewer's markViewed() silently failed permission-denied —
+      // "seen by" stayed empty and the unseen ring never cleared.
+      allow update: if isSignedIn() &&
+        (resource.data.authorId == request.auth.uid || isAdmin() ||
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewedBy']) &&
+          request.resource.data.viewedBy.toSet().difference(resource.data.viewedBy.toSet()) == [request.auth.uid].toSet() &&
+          resource.data.viewedBy.toSet().difference(request.resource.data.viewedBy.toSet()).size() == 0));
       allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid || isAdmin();
 
       match /views/{viewId} {

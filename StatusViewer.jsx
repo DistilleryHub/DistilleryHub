@@ -38,15 +38,26 @@ export default function StatusViewer({ group, initialIndex = 0, onClose }) {
     // Don't record yourself as a viewer of your own status.
     if (target.authorId === currentUser.uid) return;
     if (target.viewedBy?.includes(currentUser.uid)) return;
-    await updateDoc(doc(db, 'statuses', target.id), { viewedBy: arrayUnion(currentUser.uid) });
-    // One doc per viewer (doc id = their uid) so repeat views don't duplicate,
-    // and we keep name/photo + when they viewed for the owner's "seen by" list.
-    await setDoc(doc(db, 'statuses', target.id, 'views', currentUser.uid), {
-      viewerId: currentUser.uid,
-      viewerName: currentProfile?.name || 'Member',
-      viewerPhotoURL: currentProfile?.photoURL || '',
-      viewedAt: serverTimestamp(),
-    });
+    // Both writes attempted independently (not one blocking the other) and
+    // swallowed on failure — a view-tracking hiccup should never interrupt
+    // someone just watching a story.
+    try {
+      await updateDoc(doc(db, 'statuses', target.id), { viewedBy: arrayUnion(currentUser.uid) });
+    } catch (err) {
+      console.error('markViewed: viewedBy update failed', err);
+    }
+    try {
+      // One doc per viewer (doc id = their uid) so repeat views don't duplicate,
+      // and we keep name/photo + when they viewed for the owner's "seen by" list.
+      await setDoc(doc(db, 'statuses', target.id, 'views', currentUser.uid), {
+        viewerId: currentUser.uid,
+        viewerName: currentProfile?.name || 'Member',
+        viewerPhotoURL: currentProfile?.photoURL || '',
+        viewedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('markViewed: views doc write failed', err);
+    }
   }
 
   useEffect(() => {
