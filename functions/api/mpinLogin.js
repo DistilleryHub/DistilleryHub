@@ -66,6 +66,9 @@ export async function onRequestPost({ request, env }) {
     const token = await createCustomToken(env, userHit.id);
     return jsonResponse({ token });
   } catch (err) {
-    return jsonResponse({ error: { message: 'Server error. Baad mein try karo.' } }, 500);
+    // TEMPORARY DEBUG — reveals the real error instead of a generic message.
+    // Revert this catch block back to the generic message once the root
+    // cause is found and fixed (don't leak internal errors in production).
+    return jsonResponse({ error: { message: 'DEBUG: ' + (err && err.message ? err.message : String(err)) } }, 500);
   }
 }
