@@ -38,7 +38,7 @@ import './tailwind.css';
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter basename="/DistilleryHub">
+      <BrowserRouter>
         <ThemeProvider>
           <LanguageProvider>
             <ToastProvider>
@@ -57,7 +57,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/DistilleryHub/service-worker.js').catch((err) => {
+    navigator.serviceWorker.register('/service-worker.js').catch((err) => {
       console.warn('Service worker registration failed:', err);
     });
   });
