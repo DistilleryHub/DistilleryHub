@@ -1461,18 +1461,18 @@ export default function Chat() {
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderTop: '1px solid #222' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, borderTop: '1px solid #222' }}>
               <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, viewOnce: !mp.viewOnce }))}
                 title="View once — disappears after it's opened"
                 style={{
-                  border: 'none', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontSize: 16,
+                  flexShrink: 0, border: 'none', borderRadius: 999, padding: '8px 10px', cursor: 'pointer', fontSize: 16,
                   background: mediaPreview.viewOnce ? '#4f7fff' : '#222', color: '#fff',
                 }}>1️⃣</button>
               {mediaPreview.items[mediaPreview.activeIndex]?.kind === 'photo' && (
                 <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, hd: !mp.hd }))}
                   title="HD — send full quality (larger file)"
                   style={{
-                    border: 'none', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                    flexShrink: 0, border: 'none', borderRadius: 999, padding: '8px 10px', cursor: 'pointer', fontSize: 13, fontWeight: 700,
                     background: mediaPreview.hd ? '#4f7fff' : '#222', color: '#fff',
                   }}>HD</button>
               )}
@@ -1481,14 +1481,14 @@ export default function Chat() {
                 value={mediaPreview.caption}
                 onChange={(e) => setMediaPreview((mp) => ({ ...mp, caption: e.target.value }))}
                 style={{
-                  flex: 1, background: '#1a1a1a', border: '1px solid #333', borderRadius: 20,
+                  flex: '1 1 auto', minWidth: 0, background: '#1a1a1a', border: '1px solid #333', borderRadius: 20,
                   padding: '8px 14px', color: '#fff', fontSize: 14,
                 }}
               />
               <button type="button" onClick={sendMediaPreviewBatch} disabled={uploading}
                 title="Send"
                 style={{
-                  border: 'none', borderRadius: '50%', width: 42, height: 42, cursor: 'pointer',
+                  flexShrink: 0, border: 'none', borderRadius: '50%', width: 42, height: 42, cursor: 'pointer',
                   background: '#4f7fff', color: '#fff', fontSize: 18,
                 }}>➤</button>
             </div>
