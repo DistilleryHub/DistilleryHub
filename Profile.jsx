@@ -62,7 +62,9 @@ export default function Profile() {
   const conn = connections.find((c) => c.from === uid || c.to === uid);
 
   async function sendRequest() {
-    const connRef = doc(collection(db, 'connections'));
+    // Deterministic ID (sorted pair) — see Network.jsx's sendRequest for why.
+    const connId = [currentUser.uid, uid].sort().join('_');
+    const connRef = doc(db, 'connections', connId);
     const batch = writeBatch(db);
     batch.set(connRef, {
       from: currentUser.uid, to: uid, status: 'pending', createdAt: serverTimestamp(),

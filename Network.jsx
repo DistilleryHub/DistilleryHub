@@ -68,7 +68,12 @@ export default function Network() {
 
   async function sendRequest(person) {
     try {
-      const connRef = doc(collection(db, 'connections'));
+      // Deterministic ID (sorted pair) instead of a random one — lets
+      // firestore.rules look up "are these two connected?" with a direct
+      // get() (rules can't run queries) so whoCanMessage:'connections' can
+      // be enforced server-side in messages/create, not just hidden in the UI.
+      const connId = [currentUser.uid, person.id].sort().join('_');
+      const connRef = doc(db, 'connections', connId);
       const batch = writeBatch(db);
       batch.set(connRef, {
         from: currentUser.uid, to: person.id, status: 'pending', createdAt: serverTimestamp(),

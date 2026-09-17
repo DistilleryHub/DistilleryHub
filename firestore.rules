@@ -31,6 +31,35 @@ service cloud.firestore {
       let b = get(/databases/$(database)/documents/users/$(uidB)).data;
       return (('blocked' in a) && uidB in a.blocked) || (('blocked' in b) && uidA in b.blocked);
     }
+    // Deterministic connection doc ID (sorted pair) — matches the ID
+    // Network.jsx/Profile.jsx's sendRequest() now writes to. Lets a rule
+    // look up "are these two connected?" with a direct get(), which rules
+    // can do; rules cannot run the where('from'/'to', ==, uid) queries the
+    // client uses, so the old random-ID docs were unreachable from here.
+    // NOTE: connections created before this change still have random IDs
+    // and won't be found by this lookup until migrated — see
+    // functions/migrate-connections-once.js.
+    function connectionId(uidA, uidB) {
+      return uidA < uidB ? uidA + '_' + uidB : uidB + '_' + uidA;
+    }
+    function isConnected(uidA, uidB) {
+      let cid = connectionId(uidA, uidB);
+      return exists(/databases/$(database)/documents/connections/$(cid)) &&
+        get(/databases/$(database)/documents/connections/$(cid)).data.status == 'accepted';
+    }
+    // SECURITY FIX: Settings > Privacy > "Who can message me" (set to
+    // 'connections') used to only hide the composer in Chat.jsx — a client
+    // that skipped the UI (devtools, a modified build) could still write to
+    // messages/{} against anyone regardless of their setting. Now checked
+    // here too, in messages/create below, alongside the existing
+    // isBlockedPair enforcement.
+    function canMessage(senderId, recipientId) {
+      let recipient = get(/databases/$(database)/documents/users/$(recipientId)).data;
+      return !('settings' in recipient) ||
+        !('whoCanMessage' in recipient.settings) ||
+        recipient.settings.whoCanMessage != 'connections' ||
+        isConnected(senderId, recipientId);
+    }
 
     // ===== Rate limiting =====
     // Used by messages/create, connections/create below. get() reads the
@@ -205,15 +234,13 @@ service cloud.firestore {
     }
 
     // ===== Chats + messages =====
-    // NOTE: "who can message me" (Settings > Privacy) is currently enforced
-    // client-side only (Chat.jsx) — NOT here. Server-side enforcement needs
-    // connections/{connId} to use a deterministic ID (e.g. sorted "uidA_uidB")
-    // instead of addDoc's random ID, so a rule can get() a specific doc
-    // instead of running a query (rules can't query). That's a data-model
-    // change touching Network.jsx/Profile.jsx too, so it's left as a
-    // follow-up rather than shipped half-verified. Block enforcement below
-    // IS server-side, since `blocked` already lives at a fixed path
-    // (users/{uid}.blocked).
+    // NOTE: Block enforcement below IS server-side (isBlockedPair), since
+    // `blocked` lives at a fixed path (users/{uid}.blocked). "Who can
+    // message me" (Settings > Privacy) is now also enforced server-side via
+    // canMessage()/isConnected() above — requires connections/{} to use the
+    // deterministic sorted-pair ID (see Network.jsx/Profile.jsx sendRequest);
+    // connections made before that change need functions/migrate-connections-once.js
+    // run once, or they won't be recognized as connected here yet.
     match /chats/{chatId} {
       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
@@ -230,6 +257,15 @@ service cloud.firestore {
             !isBlockedPair(
               get(/databases/$(database)/documents/chats/$(chatId)).data.participants[0],
               get(/databases/$(database)/documents/chats/$(chatId)).data.participants[1]
+            )
+          ) &&
+          (
+            get(/databases/$(database)/documents/chats/$(chatId)).data.participants.size() != 2 ||
+            canMessage(
+              request.auth.uid,
+              get(/databases/$(database)/documents/chats/$(chatId)).data.participants[0] == request.auth.uid
+                ? get(/databases/$(database)/documents/chats/$(chatId)).data.participants[1]
+                : get(/databases/$(database)/documents/chats/$(chatId)).data.participants[0]
             )
           ) &&
           // Rate limit: at most ~1 message per 700ms per sender. Real
