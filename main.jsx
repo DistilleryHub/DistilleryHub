@@ -26,6 +26,7 @@ if (savedCompact) document.documentElement.style.setProperty('--radius', '10px')
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
+import ErrorBoundary from './ErrorBoundary.jsx';
 import { AuthProvider } from './AuthContext.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { ThemeProvider } from './ThemeContext.jsx';
@@ -36,19 +37,21 @@ import './tailwind.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter basename="/DistilleryHub">
-      <ThemeProvider>
-        <LanguageProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <NotificationProvider>
-                <App />
-              </NotificationProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </LanguageProvider>
-      </ThemeProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter basename="/DistilleryHub">
+        <ThemeProvider>
+          <LanguageProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <NotificationProvider>
+                  <App />
+                </NotificationProvider>
+              </AuthProvider>
+            </ToastProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>
 );
 
