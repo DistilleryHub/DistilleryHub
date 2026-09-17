@@ -22,7 +22,7 @@ export default function Auth() {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('signin'); // 'signin' | 'signup'
-  const [loginMethod, setLoginMethod] = useState('email'); // 'email' | 'mobile'
+  const [loginMethod, setLoginMethod] = useState('mobile'); // 'email' | 'mobile'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -107,7 +107,7 @@ export default function Auth() {
         <div className="auth-logo">
           <div className="mark">DH</div>
           <div className="auth-title">DistilleryHub</div>
-          <div className="auth-sub">Professional network for distillery &amp; ethanol experts</div>
+          <div className="auth-sub">Professional network</div>
         </div>
 
         <div className="auth-tabs">
@@ -133,10 +133,10 @@ export default function Auth() {
         {tab === 'signin' && (
           <>
             <div className="auth-tabs" style={{ marginBottom: 12 }}>
-              <button type="button" className={'auth-tab' + (loginMethod === 'email' ? ' active' : '')}
-                onClick={() => { setLoginMethod('email'); setError(''); }}>Email</button>
               <button type="button" className={'auth-tab' + (loginMethod === 'mobile' ? ' active' : '')}
                 onClick={() => { setLoginMethod('mobile'); setError(''); }}>Mobile + MPIN</button>
+              <button type="button" className={'auth-tab' + (loginMethod === 'email' ? ' active' : '')}
+                onClick={() => { setLoginMethod('email'); setError(''); }}>Email</button>
             </div>
 
             <form onSubmit={handleSignin}>
