@@ -10,5 +10,5 @@ import react from '@vitejs/plugin-react';
 // - No custom domain (this is the default) → keep base as '/DistilleryHub/'
 export default defineConfig({
   plugins: [react()],
-  base: '/DistilleryHub/',
+  base: '/',
 });
