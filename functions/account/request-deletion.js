@@ -2,7 +2,7 @@
 // Replaces exports.requestAccountDeletion from deleteAccount.js.
 // Route: POST /api/account/request-deletion  (Authorization: Bearer <idToken>)
 
-import { requireAuth, getAccessToken, fsGetDoc, fsMergeDoc, getAuthUser, jsonResponse, randomHex } from '../../_lib/firebaseAdmin.js';
+import { requireAuth, getAccessToken, fsGetDoc, fsMergeDoc, getAuthUser, jsonResponse, randomHex } from '../_lib/firebaseAdmin.js';
 import { sendConfirmDeletionEmail } from '../../_lib/email.js';
 
 export async function onRequestPost({ request, env }) {
