@@ -35,10 +35,16 @@ import { NotificationProvider } from './src/context/NotificationContext.jsx';
 import './styles.css';
 import './tailwind.css';
 
+// import.meta.env.BASE_URL mirrors vite.config.js's `base` — '/' when built
+// for Cloudflare Pages, '/DistilleryHub/' when built for GitHub Pages — so
+// this one file works correctly on both without any manual edits.
+const BASE_URL = import.meta.env.BASE_URL; // e.g. '/' or '/DistilleryHub/'
+const ROUTER_BASENAME = BASE_URL.replace(/\/$/, ''); // '' for '/', '/DistilleryHub' for the subpath
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename={ROUTER_BASENAME}>
         <ThemeProvider>
           <LanguageProvider>
             <ToastProvider>
@@ -57,7 +63,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch((err) => {
+    navigator.serviceWorker.register(`${BASE_URL}service-worker.js`).catch((err) => {
       console.warn('Service worker registration failed:', err);
     });
   });
