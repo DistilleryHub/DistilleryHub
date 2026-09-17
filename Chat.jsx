@@ -147,6 +147,10 @@ export default function Chat() {
   const [showAttach, setShowAttach] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Photo/video "preview before send" flow — holds the picked files (as
+  // local object URLs) plus the batch-level View Once / HD toggles and an
+  // optional caption, until the user hits Send in the preview modal.
+  const [mediaPreview, setMediaPreview] = useState(null);
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
 
@@ -455,6 +459,28 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat]);
 
+  // Mark incoming messages as delivered (direct chats only) — this is what
+  // flips a message from single tick (✓ sent, not yet delivered) to double
+  // tick (✓✓ delivered). Unlike the read receipt below, this ALWAYS runs
+  // regardless of the "Read receipts" privacy setting — WhatsApp shows
+  // delivered ticks even when read receipts are off; only the blue "read"
+  // tick is gated by that setting. Delivery here means "the recipient's
+  // client is open on this chat" (this app has no background/push-based
+  // delivery tracking) — a reasonable proxy, not true device-level delivery.
+  useEffect(() => {
+    if (!activeChat || activeChat.type !== 'direct' || !currentUser) return;
+    const { chatId } = getChatMeta();
+    const undelivered = messages.filter(
+      (m) => m.senderId !== currentUser.uid && !(m.deliveredTo || []).includes(currentUser.uid)
+    );
+    undelivered.forEach((m) => {
+      updateDoc(doc(db, 'chats', chatId, 'messages', m.id), {
+        deliveredTo: arrayUnion(currentUser.uid),
+      }).catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, activeChat, currentUser]);
+
   // Mark incoming messages as read (direct chats only — keeps group receipts simple).
   // Respects Settings > Privacy > "Read receipts": if the reader has turned
   // this off, we don't write readBy at all, so the sender never sees a read
@@ -616,6 +642,7 @@ export default function Chat() {
             text: m.text,
             createdAt: serverTimestamp(),
             readBy: [],
+            deliveredTo: [],
             reactions: {},
             deletedFor: [],
           });
@@ -701,6 +728,7 @@ export default function Chat() {
         text: body,
         createdAt: serverTimestamp(),
         readBy: [],
+            deliveredTo: [],
         reactions: {},
         deletedFor: [],
         ...(expiresAt ? { expiresAt } : {}),
@@ -782,14 +810,17 @@ export default function Chat() {
     } else if (key === 'photo') {
       fileInputRef.current.setAttribute('accept', 'image/*');
       fileInputRef.current.setAttribute('data-kind', 'photo');
+      fileInputRef.current.setAttribute('multiple', 'true');
       fileInputRef.current.click();
     } else if (key === 'video') {
       fileInputRef.current.setAttribute('accept', 'video/*');
       fileInputRef.current.setAttribute('data-kind', 'video');
+      fileInputRef.current.setAttribute('multiple', 'true');
       fileInputRef.current.click();
     } else if (key === 'document') {
       fileInputRef.current.setAttribute('accept', '.pdf,.doc,.docx,.xls,.xlsx,.txt');
       fileInputRef.current.setAttribute('data-kind', 'document');
+      fileInputRef.current.removeAttribute('multiple');
       fileInputRef.current.click();
     } else if (key === 'voice') {
       startRecording();
@@ -881,37 +912,99 @@ export default function Chat() {
   }
 
   async function handleFileChosen(e) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     const kind = e.target.getAttribute('data-kind');
     e.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
 
-    let viewOnce = false;
     if (kind === 'photo' || kind === 'video') {
-      const pick = await choiceDialog(
-        'Send as View Once? It will disappear after the recipient opens it.',
-        [
-          { key: 'once', label: 'View Once' },
-          { key: 'normal', label: 'Send Normally', primary: true },
-        ]
-      );
-      if (!pick) return; // dismissed — don't send at all
-      viewOnce = pick === 'once';
+      // Preview first — see mediaPreview state + sendMediaPreviewBatch()
+      // below. object URLs are revoked either on send or on close.
+      const items = files.map((file) => ({ file, kind, url: URL.createObjectURL(file) }));
+      setMediaPreview({ items, activeIndex: 0, viewOnce: false, hd: false, caption: '' });
+      return;
     }
 
+    // Documents: unchanged — single file, straight upload, no preview needed.
+    const file = files[0];
     setUploading(true);
     try {
-      const resourceType = kind === 'photo' ? 'image' : kind === 'video' ? 'video' : 'raw';
-      const url = await uploadToCloudinary(file, resourceType);
-      const icon = kind === 'photo' ? '🖼️' : kind === 'video' ? '▶️' : '📄';
-      await sendRawMessage(`${icon} ${file.name}`, {
-        attachmentType: kind,
-        mediaUrl: url,
-        ...(viewOnce ? { viewOnce: true, openedBy: [] } : {}),
-      });
+      const url = await uploadToCloudinary(file, 'raw');
+      await sendRawMessage(`📄 ${file.name}`, { attachmentType: 'document', mediaUrl: url });
     } catch (err) {
       noticeDialog('Upload failed: ' + err.message);
     }
+    setUploading(false);
+  }
+
+  // Downscales+recompresses an image client-side (mirrors WhatsApp's
+  // non-HD send) so "HD off" actually saves bandwidth instead of being a
+  // label with no effect. Videos aren't re-encoded here — doing that in the
+  // browser needs a heavy library (e.g. ffmpeg.wasm) this project doesn't
+  // include yet — so the HD toggle for video only affects upload quality
+  // hints/labeling, not the actual file size, until that's added.
+  function compressImageFile(file, maxDim = 1280, quality = 0.72) {
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+          else { width = Math.round((width * maxDim) / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
+      img.src = objectUrl;
+    });
+  }
+
+  function closeMediaPreview() {
+    mediaPreview?.items.forEach((it) => URL.revokeObjectURL(it.url));
+    setMediaPreview(null);
+  }
+
+  function removeMediaPreviewItem(index) {
+    setMediaPreview((mp) => {
+      if (!mp) return mp;
+      URL.revokeObjectURL(mp.items[index].url);
+      const items = mp.items.filter((_, i) => i !== index);
+      if (!items.length) return null;
+      return { ...mp, items, activeIndex: Math.min(mp.activeIndex, items.length - 1) };
+    });
+  }
+
+  async function sendMediaPreviewBatch() {
+    if (!mediaPreview || uploading) return;
+    const { items, viewOnce, hd, caption } = mediaPreview;
+    setMediaPreview(null);
+    setUploading(true);
+    try {
+      for (let i = 0; i < items.length; i++) {
+        const { file, kind } = items[i];
+        const resourceType = kind === 'photo' ? 'image' : 'video';
+        const uploadFile = kind === 'photo' && !hd ? await compressImageFile(file) : file;
+        const url = await uploadToCloudinary(uploadFile, resourceType);
+        const icon = kind === 'photo' ? '🖼️' : '▶️';
+        const text = (i === 0 && caption.trim()) ? caption.trim() : `${icon} ${file.name}`;
+        await sendRawMessage(text, {
+          attachmentType: kind,
+          mediaUrl: url,
+          ...(viewOnce ? { viewOnce: true, openedBy: [] } : {}),
+        });
+      }
+    } catch (err) {
+      noticeDialog('Upload failed: ' + err.message);
+    }
+    items.forEach((it) => URL.revokeObjectURL(it.url));
     setUploading(false);
   }
 
@@ -1221,6 +1314,7 @@ export default function Chat() {
       text: body,
       createdAt: serverTimestamp(),
       readBy: [],
+            deliveredTo: [],
       reactions: {},
       deletedFor: [],
       forwarded: true,
@@ -1316,6 +1410,89 @@ export default function Chat() {
     return (
       <div className="chat-thread">
         {modalElement}
+        {mediaPreview && (
+          <div style={{
+            position: 'fixed', inset: 0, background: '#000', zIndex: 1000,
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
+              <button type="button" onClick={closeMediaPreview}
+                style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>✕</button>
+              {mediaPreview.items.length > 1 && (
+                <span style={{ color: '#fff', fontSize: 13 }}>
+                  {mediaPreview.activeIndex + 1} / {mediaPreview.items.length}
+                </span>
+              )}
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12 }}>
+              {mediaPreview.items[mediaPreview.activeIndex]?.kind === 'photo' ? (
+                <img src={mediaPreview.items[mediaPreview.activeIndex].url} alt=""
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
+              ) : (
+                <video src={mediaPreview.items[mediaPreview.activeIndex]?.url} controls
+                  style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8 }} />
+              )}
+            </div>
+
+            {mediaPreview.items.length > 1 && (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '4px 12px 12px' }}>
+                {mediaPreview.items.map((it, i) => (
+                  <div key={i} style={{ position: 'relative', flex: '0 0 auto' }}>
+                    <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, activeIndex: i }))}
+                      style={{
+                        width: 52, height: 52, borderRadius: 8, overflow: 'hidden', padding: 0,
+                        border: i === mediaPreview.activeIndex ? '2px solid #4f7fff' : '2px solid transparent',
+                        background: '#111', cursor: 'pointer',
+                      }}>
+                      {it.kind === 'photo'
+                        ? <img src={it.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <video src={it.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    </button>
+                    <button type="button" onClick={() => removeMediaPreviewItem(i)} title="Remove"
+                      style={{
+                        position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%',
+                        border: 'none', background: '#e5484d', color: '#fff', fontSize: 11, lineHeight: '18px',
+                        padding: 0, cursor: 'pointer',
+                      }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderTop: '1px solid #222' }}>
+              <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, viewOnce: !mp.viewOnce }))}
+                title="View once — disappears after it's opened"
+                style={{
+                  border: 'none', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontSize: 16,
+                  background: mediaPreview.viewOnce ? '#4f7fff' : '#222', color: '#fff',
+                }}>1️⃣</button>
+              {mediaPreview.items[mediaPreview.activeIndex]?.kind === 'photo' && (
+                <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, hd: !mp.hd }))}
+                  title="HD — send full quality (larger file)"
+                  style={{
+                    border: 'none', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                    background: mediaPreview.hd ? '#4f7fff' : '#222', color: '#fff',
+                  }}>HD</button>
+              )}
+              <input
+                type="text" placeholder="Add a caption"
+                value={mediaPreview.caption}
+                onChange={(e) => setMediaPreview((mp) => ({ ...mp, caption: e.target.value }))}
+                style={{
+                  flex: 1, background: '#1a1a1a', border: '1px solid #333', borderRadius: 20,
+                  padding: '8px 14px', color: '#fff', fontSize: 14,
+                }}
+              />
+              <button type="button" onClick={sendMediaPreviewBatch} disabled={uploading}
+                title="Send"
+                style={{
+                  border: 'none', borderRadius: '50%', width: 42, height: 42, cursor: 'pointer',
+                  background: '#4f7fff', color: '#fff', fontSize: 18,
+                }}>➤</button>
+            </div>
+          </div>
+        )}
         <div className="chat-thread-header">
           <div
             className="avatar"
@@ -1336,6 +1513,16 @@ export default function Chat() {
             )}
           </div>
           <div className="chat-call-actions">
+            {activeChat.type === 'direct' && (
+              <>
+                <button className="chat-call-btn" disabled={isBlockedEitherWay}
+                  onClick={() => startCallWithPerson(activeChat.person.id, 'audio')}
+                  title="Voice call">📞</button>
+                <button className="chat-call-btn" disabled={isBlockedEitherWay}
+                  onClick={() => startCallWithPerson(activeChat.person.id, 'video')}
+                  title="Video call">📹</button>
+              </>
+            )}
             {activeChat.type === 'group' && (
               <button className="chat-call-btn" onClick={() => setShowManageGroup((v) => !v)} title={t('chat.manageGroup')}>⚙️</button>
             )}
@@ -1520,6 +1707,7 @@ export default function Chat() {
             const isMine = m.senderId === currentUser.uid;
             const reactionEntries = Object.entries(m.reactions || {}).filter(([, uids]) => uids?.length);
             const isRead = activeChat.type === 'direct' && otherParticipantId && (m.readBy || []).includes(otherParticipantId);
+            const isDelivered = activeChat.type === 'direct' && otherParticipantId && (m.deliveredTo || []).includes(otherParticipantId);
             const isViewOnceMedia = m.viewOnce && (m.attachmentType === 'photo' || m.attachmentType === 'video');
             const openedByMe = (m.openedBy || []).includes(currentUser.uid);
             const revealedNow = revealedIds.has(m.id);
@@ -1637,7 +1825,7 @@ export default function Chat() {
                 <div className="chat-bubble-time" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {timeAgo(m.createdAt)}
                   {isMine && activeChat.type === 'direct' && (
-                    <span style={{ color: isRead ? '#4f7fff' : 'inherit' }}>✓✓</span>
+                    <span style={{ color: isRead ? '#4f7fff' : 'inherit' }}>{isDelivered ? '✓✓' : '✓'}</span>
                   )}
                   {isMine && activeChat.type === 'group' && <span>✓</span>}
                 </div>

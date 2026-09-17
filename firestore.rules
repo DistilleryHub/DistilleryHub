@@ -300,7 +300,7 @@ service cloud.firestore {
               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'mediaUrl', 'attachmentType', 'deletedForEveryone'])
             ) ||
             // Any participant: react / mark read / delete-for-self / vote / RSVP / open view-once.
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'readBy', 'deletedFor', 'openedBy', 'poll', 'event'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'readBy', 'deliveredTo', 'deletedFor', 'openedBy', 'poll', 'event'])
           );
         allow delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
       }
