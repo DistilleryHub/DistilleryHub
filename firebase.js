@@ -15,11 +15,13 @@ const firebaseConfig = {
 };
 
 export const CLOUDINARY_CLOUD_NAME = "y8iguofl";
-// CLOUDINARY_UPLOAD_PRESET removed — every upload now goes through the
-// signed, rate-limited getCloudinarySignature Cloud Function instead (see
-// uploadUtils.js). Also disable/restrict the "tdm_upload" unsigned preset
-// itself on Cloudinary's dashboard — leaving it enabled there means the old
-// bypass still works even though no code in this repo calls it anymore.
+// Unsigned upload preset — required because this app is a static site on
+// GitHub Pages with no server component to sign uploads (see uploadUtils.js
+// for the full explanation). Create/re-enable a preset with this exact name
+// in Cloudinary → Settings → Upload → Upload presets, set its Signing Mode
+// to "Unsigned", and restrict it there (max file size, allowed formats,
+// folder) since there's no server-side rate limit on this path.
+export const CLOUDINARY_UPLOAD_PRESET = "tdm_upload";
 
 export const fbApp = initializeApp(firebaseConfig);
 export const auth = getAuth(fbApp);

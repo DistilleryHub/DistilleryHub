@@ -13,6 +13,7 @@ import { useLanguage } from './LanguageContext';
 import { notify } from './notify';
 import ReportDialog from './ReportDialog';
 import StatusTray from './StatusTray';
+import { usePromptModal } from './PromptModal';
 
 function chatIdFor(uidA, uidB) {
   return [uidA, uidB].sort().join('_');
@@ -116,6 +117,7 @@ export default function Chat() {
   const { currentUser, currentProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirmDialog, formDialog, choiceDialog, noticeDialog, modalElement } = usePromptModal();
   const { startCall } = useCall();
   const { t } = useLanguage();
   const [people, setPeople] = useState([]);
@@ -123,6 +125,8 @@ export default function Chat() {
   const [groupChats, setGroupChats] = useState([]);
   const [directChatDocs, setDirectChatDocs] = useState([]);
   const [callLog, setCallLog] = useState([]);
+  const [callFilter, setCallFilter] = useState('all'); // 'all' | 'missed' | 'incoming' | 'outgoing'
+  const [showNewCall, setShowNewCall] = useState(false);
   const [listTab, setListTab] = useState('chats'); // 'chats' | 'groups' | 'calls'
 
   // Bottom nav's "Calls" tab links to /chat?tab=calls so it opens straight
@@ -712,9 +716,9 @@ export default function Chat() {
     } catch (err) {
       console.error('sendRawMessage failed', err);
       if (err.code === 'permission-denied') {
-        alert('You\u2019re sending messages too fast — slow down a bit.');
+        noticeDialog('You\u2019re sending messages too fast — slow down a bit.');
       } else {
-        alert('Message send failed: ' + err.code + ' — ' + err.message);
+        noticeDialog('Message send failed: ' + err.code + ' — ' + err.message);
       }
       setText(body);
     }
@@ -741,7 +745,7 @@ export default function Chat() {
           editedAt: serverTimestamp(),
         });
       } catch (err) {
-        alert('Edit failed: ' + (err.message || err));
+        noticeDialog('Edit failed: ' + (err.message || err));
       }
       return;
     }
@@ -757,7 +761,7 @@ export default function Chat() {
     if (mentions.length) await notifyMentioned(mentions, body);
   }
 
-  function handleAttachClick(key) {
+  async function handleAttachClick(key) {
     setShowAttach(false);
     if (key === 'schedule') {
       setShowScheduleForm(true);
@@ -768,8 +772,8 @@ export default function Chat() {
     } else if (key === 'event') {
       promptForEvent();
     } else if (key === 'location') {
-      const loc = prompt('Enter batch / distillery location:');
-      if (loc) sendRawMessage(`📍 ${loc}`, { attachmentType: 'location' });
+      const loc = await formDialog('Batch / distillery location', [{ key: 'loc', label: 'Enter batch / distillery location' }]);
+      if (loc?.loc) sendRawMessage(`📍 ${loc.loc}`, { attachmentType: 'location' });
     } else if (key === 'profile') {
       sendRawMessage(`👤 Shared profile: ${currentUser.displayName || currentUser.email}`, {
         attachmentType: 'profile',
@@ -793,24 +797,30 @@ export default function Chat() {
   }
 
   async function promptForPoll() {
-    const question = prompt('Poll question:');
-    if (!question) return;
-    const optionsRaw = prompt('Options (comma separated):');
-    if (!optionsRaw) return;
-    const options = optionsRaw.split(',').map((s) => s.trim()).filter(Boolean);
+    const result = await formDialog('Create a poll', [
+      { key: 'question', label: 'Poll question' },
+      { key: 'options', label: 'Options (comma separated)', placeholder: 'e.g. Yes, No, Maybe' },
+    ]);
+    if (!result) return;
+    const { question, options: optionsRaw } = result;
+    if (!question?.trim()) return;
+    const options = (optionsRaw || '').split(',').map((s) => s.trim()).filter(Boolean);
     if (options.length < 2) {
-      alert('Add at least 2 options.');
+      await noticeDialog('Add at least 2 options.');
       return;
     }
     await sendRawMessage(`📊 ${question}`, { attachmentType: 'poll', poll: { question, options, votes: {} } });
   }
 
   async function promptForEvent() {
-    const title = prompt('Event title:');
-    if (!title) return;
-    const when = prompt('Date & time (e.g. 12 Oct, 6pm):') || '';
-    const location = prompt('Location (optional):') || '';
-    await sendRawMessage(`📅 ${title}`, { attachmentType: 'event', event: { title, when, location, going: [] } });
+    const result = await formDialog('Create an event', [
+      { key: 'title', label: 'Event title' },
+      { key: 'when', label: 'Date & time', placeholder: 'e.g. 12 Oct, 6pm' },
+      { key: 'location', label: 'Location (optional)' },
+    ]);
+    if (!result?.title?.trim()) return;
+    const { title, when, location } = result;
+    await sendRawMessage(`📅 ${title}`, { attachmentType: 'event', event: { title, when: when || '', location: location || '', going: [] } });
   }
 
   async function votePoll(m, optionIndex) {
@@ -837,11 +847,11 @@ export default function Chat() {
     if (!scheduleText.trim() || !scheduleWhen || !activeChat) return;
     const when = new Date(scheduleWhen);
     if (isNaN(when.getTime())) {
-      alert('Please pick a valid date & time.');
+      noticeDialog('Please pick a valid date & time.');
       return;
     }
     if (when.getTime() <= Date.now()) {
-      alert('Please pick a time in the future.');
+      noticeDialog('Please pick a time in the future.');
       return;
     }
     const { chatId, participants } = getChatMeta();
@@ -861,12 +871,12 @@ export default function Chat() {
       setScheduleWhen('');
       setShowScheduleForm(false);
     } catch (err) {
-      alert('Could not schedule message: ' + err.message);
+      noticeDialog('Could not schedule message: ' + err.message);
     }
   }
 
   async function cancelScheduledMessage(id) {
-    if (!confirm('Cancel this scheduled message?')) return;
+    if (!(await confirmDialog('Cancel this scheduled message?'))) return;
     await deleteDoc(doc(db, 'scheduledMessages', id));
   }
 
@@ -878,7 +888,15 @@ export default function Chat() {
 
     let viewOnce = false;
     if (kind === 'photo' || kind === 'video') {
-      viewOnce = confirm('Send as View Once? It will disappear after the recipient opens it.\n\nOK = View Once, Cancel = normal message');
+      const pick = await choiceDialog(
+        'Send as View Once? It will disappear after the recipient opens it.',
+        [
+          { key: 'once', label: 'View Once' },
+          { key: 'normal', label: 'Send Normally', primary: true },
+        ]
+      );
+      if (!pick) return; // dismissed — don't send at all
+      viewOnce = pick === 'once';
     }
 
     setUploading(true);
@@ -892,7 +910,7 @@ export default function Chat() {
         ...(viewOnce ? { viewOnce: true, openedBy: [] } : {}),
       });
     } catch (err) {
-      alert('Upload failed: ' + err.message);
+      noticeDialog('Upload failed: ' + err.message);
     }
     setUploading(false);
   }
@@ -916,7 +934,7 @@ export default function Chat() {
           const url = await uploadToCloudinary(file, 'video');
           await sendRawMessage('🎤 Voice note', { attachmentType: 'voice', mediaUrl: url });
         } catch (err) {
-          alert('Upload failed: ' + err.message);
+          noticeDialog('Upload failed: ' + err.message);
         }
         setUploading(false);
       };
@@ -924,7 +942,7 @@ export default function Chat() {
       recorder.start();
       setRecording(true);
     } catch (err) {
-      alert('Microphone access denied or unavailable.');
+      noticeDialog('Microphone access denied or unavailable.');
     }
   }
 
@@ -970,15 +988,22 @@ export default function Chat() {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
 
-  function handleStartCall(callType) {
-    if (activeChat.type === 'direct' && isBlockedEitherWay) {
-      alert('You can\u2019t call this user.');
+  function redialCall(call, callType) {
+    const others = (call.participants || []).filter((id) => id !== currentUser.uid);
+    if (others.some((id) => (currentProfile?.blocked || []).includes(id))) {
+      noticeDialog('You can\u2019t call this user.');
       return;
     }
-    const others = activeChat.type === 'direct'
-      ? [activeChat.person.id]
-      : activeChat.chat.participants.filter((id) => id !== currentUser.uid);
-    startCall(others, callType);
+    startCall(others, callType || call.callType);
+  }
+
+  function startCallWithPerson(personId, callType) {
+    if ((currentProfile?.blocked || []).includes(personId)) {
+      noticeDialog('You can\u2019t call this user.');
+      return;
+    }
+    setShowNewCall(false);
+    startCall([personId], callType);
   }
 
   // ---- Per-message WhatsApp-style option handlers ----
@@ -1030,13 +1055,13 @@ export default function Chat() {
   }
 
   async function toggleBlockPerson(personId, isCurrentlyBlocked) {
-    if (!isCurrentlyBlocked && !confirm('Block this person? They won\u2019t be able to message or call you.')) return;
+    if (!isCurrentlyBlocked && !(await confirmDialog('Block this person? They won\u2019t be able to message or call you.', { danger: true, confirmLabel: 'Block' }))) return;
     try {
       await updateDoc(doc(db, 'users', currentUser.uid), {
         blocked: isCurrentlyBlocked ? arrayRemove(personId) : arrayUnion(personId),
       });
     } catch (err) {
-      alert('Could not update block status: ' + (err.message || err));
+      noticeDialog('Could not update block status: ' + (err.message || err));
     }
   }
 
@@ -1090,7 +1115,7 @@ export default function Chat() {
 
   async function deleteForEveryone(m) {
     if (m.senderId !== currentUser.uid) return;
-    if (!confirm('Delete this message for everyone?')) return;
+    if (!(await confirmDialog('Delete this message for everyone?', { danger: true, confirmLabel: 'Delete' }))) return;
     const { chatId } = getChatMeta();
     await updateDoc(doc(db, 'chats', chatId, 'messages', m.id), {
       text: '',
@@ -1129,7 +1154,7 @@ export default function Chat() {
 
   async function removeAdmin(uid) {
     if ((chatMeta?.admins || []).length <= 1) {
-      alert('A group needs at least one admin.');
+      noticeDialog('A group needs at least one admin.');
       return;
     }
     const { chatId } = getChatMeta();
@@ -1219,7 +1244,7 @@ export default function Chat() {
       setForwardingMessage(null);
       setShowForwardPicker(false);
     } catch (err) {
-      alert('Could not forward: ' + err.message);
+      noticeDialog('Could not forward: ' + err.message);
     }
   }
 
@@ -1234,7 +1259,7 @@ export default function Chat() {
   }
 
   async function clearChatForMe() {
-    if (!confirm('Clear this chat? Messages will be hidden only for you.')) return;
+    if (!(await confirmDialog('Clear this chat? Messages will be hidden only for you.', { danger: true, confirmLabel: 'Clear' }))) return;
     const { chatId } = getChatMeta();
     try {
       await Promise.all(
@@ -1243,7 +1268,7 @@ export default function Chat() {
         )
       );
     } catch (err) {
-      alert('Could not clear chat: ' + err.message);
+      noticeDialog('Could not clear chat: ' + err.message);
     }
     setShowChatMenu(false);
   }
@@ -1290,6 +1315,7 @@ export default function Chat() {
 
     return (
       <div className="chat-thread">
+        {modalElement}
         <div className="chat-thread-header">
           <div
             className="avatar"
@@ -1313,8 +1339,6 @@ export default function Chat() {
             {activeChat.type === 'group' && (
               <button className="chat-call-btn" onClick={() => setShowManageGroup((v) => !v)} title={t('chat.manageGroup')}>⚙️</button>
             )}
-            <button className="chat-call-btn" onClick={() => handleStartCall('audio')} title={t('chat.voiceCall')}>📞</button>
-            <button className="chat-call-btn" onClick={() => handleStartCall('video')} title={t('chat.videoCall')}>📹</button>
             <button className="chat-call-btn" onClick={() => setShowChatMenu((v) => !v)} title={t('chat.moreOptions')}>⋮</button>
           </div>
         </div>
@@ -1685,7 +1709,7 @@ export default function Chat() {
               messageSenderId: reportingMessage.senderId,
             }}
             onClose={() => setReportingMessage(null)}
-            onSubmitted={() => alert('Report submitted. Thanks for flagging this.')}
+            onSubmitted={() => noticeDialog('Report submitted. Thanks for flagging this.')}
           />
         )}
 
@@ -1694,7 +1718,7 @@ export default function Chat() {
             targetType="user"
             targetId={activeChat.person.id}
             onClose={() => setReportingPerson(false)}
-            onSubmitted={() => alert('Report submitted. Thanks for flagging this.')}
+            onSubmitted={() => noticeDialog('Report submitted. Thanks for flagging this.')}
           />
         )}
 
@@ -1819,6 +1843,7 @@ export default function Chat() {
 
   return (
     <div className="chat-page">
+      {modalElement}
       <StatusTray />
 
       <div className="chat-list-tabs">
@@ -1846,10 +1871,10 @@ export default function Chat() {
         <button
           type="button"
           className="chat-list-tab-add"
-          onClick={() => setShowNewGroup((v) => !v)}
-          title="New group chat"
+          onClick={() => (listTab === 'calls' ? setShowNewCall((v) => !v) : setShowNewGroup((v) => !v))}
+          title={listTab === 'calls' ? 'New call' : 'New group chat'}
         >
-          {showNewGroup ? '✕' : '+'}
+          {(listTab === 'calls' ? showNewCall : showNewGroup) ? '✕' : '+'}
         </button>
       </div>
 
@@ -1861,6 +1886,31 @@ export default function Chat() {
             value={listSearch}
             onChange={(e) => setListSearch(e.target.value)}
           />
+        </div>
+      )}
+
+      {showNewCall && (
+        <div className="card">
+          <div className="form-field" style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 12.5, color: 'var(--muted)' }}>Start a new call</label>
+          </div>
+          <div className="group-select-list">
+            {connectedPeople.length === 0 && <div className="empty-state">Connect with someone first to call them.</div>}
+            {connectedPeople.map((p) => (
+              <div key={p.id} className="chat-row" style={{ cursor: 'default' }}>
+                <div className="chat-row-avatar">
+                  {p.photoURL ? <img src={p.photoURL} alt="" /> : (p.name?.[0] || '?')}
+                </div>
+                <div className="chat-row-body">
+                  <span className="chat-row-name">{p.name}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" className="chat-call-btn" title="Voice call" onClick={() => startCallWithPerson(p.id, 'audio')}>📞</button>
+                  <button type="button" className="chat-call-btn" title="Video call" onClick={() => startCallWithPerson(p.id, 'video')}>📹</button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1933,10 +1983,45 @@ export default function Chat() {
 
       {listTab === 'calls' && (
         <div className="chat-list">
-          {callLog.length === 0 && (
-            <div className="empty-state">No calls yet.</div>
+          <div className="call-filter-row">
+            {[
+              { key: 'all', label: 'All calls' },
+              { key: 'missed', label: 'Missed' },
+              { key: 'incoming', label: 'Incoming' },
+              { key: 'outgoing', label: 'Outgoing' },
+            ].map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                className={'call-filter-chip' + (callFilter === f.key ? ' active' : '')}
+                onClick={() => setCallFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {callLog
+            .filter((call) => {
+              const isOutgoing = call.initiatedBy === currentUser.uid;
+              const isMissed = !isOutgoing && !call.answeredAt;
+              if (callFilter === 'missed') return isMissed;
+              if (callFilter === 'incoming') return !isOutgoing;
+              if (callFilter === 'outgoing') return isOutgoing;
+              return true;
+            })
+            .length === 0 && (
+            <div className="empty-state">No calls in this filter yet.</div>
           )}
-          {callLog.map((call) => {
+          {callLog
+            .filter((call) => {
+              const isOutgoing = call.initiatedBy === currentUser.uid;
+              const isMissed = !isOutgoing && !call.answeredAt;
+              if (callFilter === 'missed') return isMissed;
+              if (callFilter === 'incoming') return !isOutgoing;
+              if (callFilter === 'outgoing') return isOutgoing;
+              return true;
+            })
+            .map((call) => {
             const participants = call.participants || [];
             const isGroup = participants.length > 2;
             const otherId = !isGroup ? participants.find((id) => id !== currentUser.uid) : null;
@@ -1971,6 +2056,16 @@ export default function Chat() {
                     </span>
                   </div>
                 </div>
+                {!isGroup && (
+                  <button
+                    type="button"
+                    className="chat-call-btn"
+                    title={call.callType === 'video' ? 'Video call back' : 'Call back'}
+                    onClick={() => redialCall(call)}
+                  >
+                    {call.callType === 'video' ? '📹' : '📞'}
+                  </button>
+                )}
               </div>
             );
           })}

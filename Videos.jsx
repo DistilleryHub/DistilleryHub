@@ -3,12 +3,13 @@ import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc,
   arrayUnion, arrayRemove, serverTimestamp,
 } from 'firebase/firestore';
-import { db, apiFetch } from './firebase';
+import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
 import { notify } from './notify';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
+import { uploadToCloudinaryWithProgress } from './uploadUtils';
 import ShareSheet from './ShareSheet';
 import { IconThumbsUp, IconComment, IconSend, IconVolume, IconVolumeMute, IconBookmark } from './Icons';
 
@@ -287,39 +288,7 @@ export default function Videos() {
   }
 
   function uploadVideoFile(file) {
-    return new Promise((resolve, reject) => {
-      apiFetch('/api/cloudinarySign').then((sig) => {
-        const xhr = new XMLHttpRequest();
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('api_key', sig.apiKey);
-        fd.append('timestamp', sig.timestamp);
-        fd.append('signature', sig.signature);
-        fd.append('folder', sig.folder);
-        xhr.open('POST', `https://api.cloudinary.com/v1_1/${sig.cloudName}/video/upload`);
-        xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) setUploadPct(Math.round((ev.loaded / ev.total) * 100));
-        };
-        xhr.onload = () => {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (data.secure_url) resolve(data.secure_url);
-            else {
-              console.error('Cloudinary video upload error:', data);
-              reject(new Error(data?.error?.message || 'Video upload failed'));
-            }
-          } catch (e) { reject(e); }
-        };
-        xhr.onerror = () => reject(new Error('Network error during upload'));
-        xhr.send(fd);
-      }).catch((err) => {
-        if (err.status === 429) {
-          reject(new Error('Upload limit reached — try again in a few minutes.'));
-        } else {
-          reject(new Error('Could not start upload: ' + err.message));
-        }
-      });
-    });
+    return uploadToCloudinaryWithProgress(file, 'video', setUploadPct);
   }
 
   useEffect(() => {

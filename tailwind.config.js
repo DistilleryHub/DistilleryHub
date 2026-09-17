@@ -9,25 +9,39 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Wired to the live CSS custom properties from styles.css /
-        // ThemeContext.jsx (--bg-rgb, --card-bg-rgb, etc.), NOT hardcoded
-        // hex. Previously these were fixed to the navy-dark palette, so
-        // any component using e.g. `bg-navy-card` or `text-brand` (BottomNav,
-        // TopBar, MainLayout, PostCard, Videos, App) stayed navy-dark
-        // forever no matter which theme was picked in Settings — that was
-        // the permanent theme-color bug. The `rgb(var(...) / <alpha-value>)`
-        // form is what lets Tailwind's opacity modifiers (e.g. `/95`, `/10`)
-        // keep working on top of a variable color.
+        // These all point at the CSS custom properties defined in
+        // styles.css (:root / [data-theme="..."]) instead of fixed hex
+        // values, so every Tailwind utility class below automatically
+        // follows whichever of the 4 themes (navy-dark/light/distillery-green
+        // /amber-dark) is active — previously these were hardcoded navy
+        // hex values, so switching to the Light theme left the app shell
+        // (TopBar, BottomNav, MainLayout) stuck dark while styles.css-driven
+        // cards turned white, producing the "dark shell + white floating
+        // cards, washed-out text" look.
         navy: {
-          bg: 'rgb(var(--bg-rgb) / <alpha-value>)',
-          card: 'rgb(var(--card-bg-rgb) / <alpha-value>)',
-          cardAlt: 'rgb(var(--card-hover-rgb) / <alpha-value>)',
-          border: 'rgb(var(--border-rgb) / <alpha-value>)',
+          bg: 'var(--bg)',
+          card: 'var(--card-bg)',
+          cardAlt: 'var(--card-hover)',
+          border: 'var(--border)',
         },
         brand: {
-          DEFAULT: 'rgb(var(--primary-rgb) / <alpha-value>)',
+          DEFAULT: 'var(--primary)',
           hover: 'var(--primary-hover)',
           soft: 'var(--primary-soft)',
+        },
+        // Overriding these specific shades (rather than the whole Tailwind
+        // slate scale) covers every text-slate-*/border-slate-*/bg-slate-*
+        // class actually used in the app (TopBar, MainLayout, BottomNav,
+        // PostCard, Videos) and makes them theme-aware too.
+        slate: {
+          100: 'var(--text)',
+          200: 'var(--text)',
+          300: 'var(--muted)',
+          400: 'var(--muted)',
+          500: 'var(--muted-2)',
+          600: 'var(--muted-2)',
+          700: 'var(--border)',
+          800: 'var(--border)',
         },
       },
       fontFamily: {
