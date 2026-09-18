@@ -6,6 +6,7 @@ import {
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useLanguage } from './LanguageContext';
+import { IconBell, IconX } from './Icons';
 import { useToast } from './ToastContext';
 import { useNotifications } from './src/context/NotificationContext';
 
@@ -116,7 +117,7 @@ export default function Notifications() {
           Settings, so people see the option right where notifications live. */}
       {pushPermission !== 'granted' && (
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <span style={{ fontSize: 22 }}>🔔</span>
+          <span style={{ fontSize: 22 }}><IconBell className="w-6 h-6" /></span>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600 }}>
               {pushPermission === 'denied' ? 'Push notifications blocked' : 'Turn on push notifications'}
@@ -181,7 +182,7 @@ export default function Notifications() {
                 aria-label={t('notifications.delete')}
                 title={t('notifications.delete')}
               >
-                ✕
+                <IconX className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}

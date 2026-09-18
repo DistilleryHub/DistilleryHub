@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
+import { IconBookmark, IconCheck } from './Icons';
 
 export default function Jobs() {
   const { currentUser, currentProfile } = useAuth();
@@ -148,8 +149,10 @@ export default function Jobs() {
                     imageURL: '',
                     link: '/jobs',
                   })}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  {bookmarkIds.has(bookmarkDocId('job', job.id)) ? '🔖 Saved' : '🔖 Save'}
+                  <IconBookmark className="w-4 h-4" filled={bookmarkIds.has(bookmarkDocId('job', job.id))} />
+                  {bookmarkIds.has(bookmarkDocId('job', job.id)) ? 'Saved' : 'Save'}
                 </button>
                 {job.postedBy === currentUser.uid ? (
                   <>
@@ -160,8 +163,9 @@ export default function Jobs() {
                   <button
                     className={'btn btn-sm ' + (applied ? 'btn-ghost' : 'btn-primary')}
                     onClick={() => toggleApply(job)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    {applied ? 'Applied ✓' : 'Apply'}
+                    {applied ? (<><IconCheck className="w-3.5 h-3.5" /> Applied</>) : 'Apply'}
                   </button>
                 )}
               </div>

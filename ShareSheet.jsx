@@ -4,6 +4,7 @@ import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { shareToConnection, nativeShare } from './share';
+import { IconX, IconSend } from './Icons';
 
 // item: { title, snippet, link } — link should be an absolute-ish app URL.
 export default function ShareSheet({ item, onClose }) {
@@ -63,11 +64,11 @@ export default function ShareSheet({ item, onClose }) {
       <div className="card" style={{ maxWidth: 420, margin: '10vh auto', padding: 16 }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <h3 style={{ margin: 0 }}>Share</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}><IconX className="w-4 h-4" /></button>
         </div>
 
-        <button className="btn btn-primary btn-block" onClick={handleNativeShare} style={{ marginBottom: 12 }}>
-          📤 Share via… (WhatsApp, Instagram, etc.)
+        <button className="btn btn-primary btn-block" onClick={handleNativeShare} style={{ marginBottom: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <IconSend className="w-4 h-4" /> Share via… (WhatsApp, Instagram, etc.)
         </button>
 
         <div className="settings-subheading">Send to a connection</div>

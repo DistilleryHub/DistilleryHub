@@ -10,6 +10,13 @@ import { db } from './firebase';
 import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useCall } from './CallContext';
+import {
+  IconClock, IconCornerUpRight, IconBarChart, IconCalendar, IconMapPin, IconUser,
+  IconImage, IconMic, IconFileText, IconX, IconEye, IconPhone, IconVideo, IconSettings,
+  IconSearch, IconTrash2, IconBellOff, IconBell, IconBan, IconCheck, IconFlag, IconCrown,
+  IconChevronUp, IconCornerUpLeft, IconSmile, IconCopy, IconEdit, IconLock, IconCheckCheck,
+  IconUsers, IconArrowUpRight, IconArrowDownLeft, IconPlus, IconMoreVertical, IconMessage, IconSend,
+} from './Icons';
 import { useLanguage } from './LanguageContext';
 import { notify } from './notify';
 import ReportDialog from './ReportDialog';
@@ -37,16 +44,16 @@ function formatScheduledFor(ts) {
 }
 
 const ATTACH_OPTIONS = [
-  { key: 'schedule', label: 'Schedule Message', icon: '🕒', color: '#4f7fff' },
-  { key: 'quickreply', label: 'Quick Reply', icon: '↗️', color: '#4f7fff' },
-  { key: 'poll', label: 'Poll', icon: '📊', color: '#0ea5e9' },
-  { key: 'event', label: 'Event', icon: '📅', color: '#14b8a6' },
-  { key: 'location', label: 'Batch Location', icon: '📍', color: '#22c55e' },
-  { key: 'profile', label: 'Share Profile', icon: '👤', color: '#f97316' },
-  { key: 'photo', label: 'Photo', icon: '🖼️', color: '#ec4899' },
-  { key: 'video', label: 'Video', icon: '▶️', color: '#a855f7' },
-  { key: 'voice', label: 'Voice Note', icon: '🎤', color: '#f5576c' },
-  { key: 'document', label: 'Share Document', icon: '📄', color: '#f97316' },
+  { key: 'schedule', label: 'Schedule Message', icon: <IconClock className="w-5 h-5" />, color: '#4f7fff' },
+  { key: 'quickreply', label: 'Quick Reply', icon: <IconCornerUpRight className="w-5 h-5" />, color: '#4f7fff' },
+  { key: 'poll', label: 'Poll', icon: <IconBarChart className="w-5 h-5" />, color: '#0ea5e9' },
+  { key: 'event', label: 'Event', icon: <IconCalendar className="w-5 h-5" />, color: '#14b8a6' },
+  { key: 'location', label: 'Batch Location', icon: <IconMapPin className="w-5 h-5" />, color: '#22c55e' },
+  { key: 'profile', label: 'Share Profile', icon: <IconUser className="w-5 h-5" />, color: '#f97316' },
+  { key: 'photo', label: 'Photo', icon: <IconImage className="w-5 h-5" />, color: '#ec4899' },
+  { key: 'video', label: 'Video', icon: <IconVideo className="w-5 h-5" />, color: '#a855f7' },
+  { key: 'voice', label: 'Voice Note', icon: <IconMic className="w-5 h-5" />, color: '#f5576c' },
+  { key: 'document', label: 'Share Document', icon: <IconFileText className="w-5 h-5" />, color: '#f97316' },
 ];
 
 const QUICK_REPLIES = [
@@ -71,11 +78,15 @@ const WALLPAPER_OPTIONS = [
   { key: 'sky', label: 'Sky', bg: 'linear-gradient(160deg,#12263a,#173a52)' },
 ];
 
+// How often we poll for due scheduled messages / expired disappearing
+// messages while the app is open.
 const BACKGROUND_CHECK_INTERVAL_MS = 20000;
 const PRESENCE_HEARTBEAT_MS = 30000;
 const ONLINE_THRESHOLD_MS = 60000;
 const MESSAGES_PAGE_SIZE = 40;
 
+// Renders *bold*, _italic_, ~strike~, "@mention" and "> quoted line" —
+// the same shortcut syntax WhatsApp recognizes while typing.
 function renderFormattedText(text) {
   if (!text) return null;
   const lines = text.split('\n');
@@ -122,10 +133,12 @@ export default function Chat() {
   const [groupChats, setGroupChats] = useState([]);
   const [directChatDocs, setDirectChatDocs] = useState([]);
   const [callLog, setCallLog] = useState([]);
-  const [callFilter, setCallFilter] = useState('all');
+  const [callFilter, setCallFilter] = useState('all'); // 'all' | 'missed' | 'incoming' | 'outgoing'
   const [showNewCall, setShowNewCall] = useState(false);
-  const [listTab, setListTab] = useState('chats');
+  const [listTab, setListTab] = useState('chats'); // 'chats' | 'groups' | 'calls'
 
+  // Bottom nav's "Calls" tab links to /chat?tab=calls so it opens straight
+  // into the existing Calls sub-tab instead of needing a separate route.
   useEffect(() => {
     const wanted = new URLSearchParams(location.search).get('tab');
     setListTab(wanted === 'calls' || wanted === 'groups' ? wanted : 'chats');
@@ -133,7 +146,7 @@ export default function Chat() {
   }, [location.search]);
   const [listSearch, setListSearch] = useState('');
   const [activeChat, setActiveChat] = useState(null);
-  const [chatMeta, setChatMeta] = useState(null);
+  const [chatMeta, setChatMeta] = useState(null); // live chat doc: pinned/admin/disappearing/mute/etc.
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
@@ -142,30 +155,35 @@ export default function Chat() {
   const [showAttach, setShowAttach] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Photo/video "preview before send" flow — holds the picked files (as
+  // local object URLs) plus the batch-level View Once / HD toggles and an
+  // optional caption, until the user hits Send in the preview modal.
   const [mediaPreview, setMediaPreview] = useState(null);
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
 
-  const [activeMessageMenu, setActiveMessageMenu] = useState(null);
-  const [reactingTo, setReactingTo] = useState(null);
-  const [replyTo, setReplyTo] = useState(null);
-  const [revealedIds, setRevealedIds] = useState(new Set());
+  // Per-message WhatsApp-style options
+  const [activeMessageMenu, setActiveMessageMenu] = useState(null); // message id
+  const [reactingTo, setReactingTo] = useState(null); // message id
+  const [replyTo, setReplyTo] = useState(null); // { id, text, senderId, senderName }
+  const [revealedIds, setRevealedIds] = useState(new Set()); // view-once media opened this session
 
+  // @ mentions (group chats only)
   const [mentionCandidates, setMentionCandidates] = useState([]);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
 
+  // Group admin controls
   const [showManageGroup, setShowManageGroup] = useState(false);
   const [showAddMemberList, setShowAddMemberList] = useState(false);
 
+  // Forward message
   const [forwardingMessage, setForwardingMessage] = useState(null);
   const [showForwardPicker, setShowForwardPicker] = useState(false);
-  const [editingMessage, setEditingMessage] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null); // { id, chatId }
   const [reportingMessage, setReportingMessage] = useState(null);
   const [reportingPerson, setReportingPerson] = useState(false);
 
-  // Top bar (⋮) menu: search / wallpaper / clear chat / mute — for group
-  // chats this is now the ONE menu (manage-group merged in below, no more
-  // separate ⚙️ icon).
+  // Top bar (⋮) menu: search / wallpaper / clear chat / mute
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -173,8 +191,10 @@ export default function Chat() {
   const [wallpaperKey, setWallpaperKey] = useState('default');
   const [showDisappearingMenu, setShowDisappearingMenu] = useState(false);
 
+  // Presence (online / last seen) — only tracked for direct chats.
   const [otherPresence, setOtherPresence] = useState(null);
 
+  // Schedule Message state
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleText, setScheduleText] = useState('');
   const [scheduleWhen, setScheduleWhen] = useState('');
@@ -217,6 +237,9 @@ export default function Chat() {
     return unsub;
   }, [currentUser]);
 
+  // Ended call history for the "Calls" tab. Needs a composite index
+  // (participants array-contains + status == + createdAt orderBy) — if it's
+  // missing, Firestore logs an error with a one-click link to create it.
   useEffect(() => {
     if (!currentUser) return;
     const q = query(
@@ -238,6 +261,9 @@ export default function Chat() {
     return people.filter((p) => otherIds.includes(p.id));
   }, [connections, people, currentUser]);
 
+  // Direct chat doc (lastMessage/lastMessageAt) for each connected person,
+  // keyed by their uid — chat doc IDs are deterministic (chatIdFor), so the
+  // other participant is just whichever id in `participants` isn't mine.
   const directChatByPersonId = useMemo(() => {
     const map = {};
     directChatDocs.forEach((c) => {
@@ -247,6 +273,9 @@ export default function Chat() {
     return map;
   }, [directChatDocs, currentUser]);
 
+  // WhatsApp-style ordering: whoever you most recently messaged floats to
+  // the top; connections you haven't chatted with yet fall to the bottom,
+  // alphabetically.
   const sortedDirectList = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
     return connectedPeople
@@ -265,6 +294,7 @@ export default function Chat() {
     return groupChats.filter((c) => !q || c.name?.toLowerCase().includes(q));
   }, [groupChats, listSearch]);
 
+  // Other members of the currently open group chat, used for @mention lookups.
   const groupMembers = useMemo(() => {
     if (!activeChat || activeChat.type !== 'group' || !currentUser) return [];
     return people.filter(
@@ -300,6 +330,8 @@ export default function Chat() {
     setShowMentionPicker(false);
   }
 
+  // Finds which group members were actually @mentioned in the sent text,
+  // so we can tag the message and notify them.
   function extractMentionedUids(body) {
     if (!activeChat || activeChat.type !== 'group') return [];
     return groupMembers
@@ -345,10 +377,13 @@ export default function Chat() {
     return people.find((p) => p.id === uid)?.name || 'Member';
   }
 
+  // Messages: only the latest MESSAGES_PAGE_SIZE are kept live via onSnapshot.
+  // Older pages are fetched once (not live) via loadOlderMessages() below and
+  // appended — this is the "don't load the whole history at once" fix.
   const [olderDocs, setOlderDocs] = useState([]);
   const [hasMoreOlder, setHasMoreOlder] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const liveDocsRef = useRef([]);
+  const liveDocsRef = useRef([]); // latest snap.docs from the live window, desc order
   const olderDocsRef = useRef([]);
   useEffect(() => { olderDocsRef.current = olderDocs; }, [olderDocs]);
 
@@ -374,6 +409,10 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat, currentUser]);
 
+  // Anchored on the oldest currently-shown message's timestamp (not a doc
+  // snapshot reference) — a snapshot-based anchor can develop a gap if the
+  // live window shifts (new messages arriving) between page loads; a
+  // timestamp anchor stays correct regardless.
   async function loadOlderMessages() {
     if (loadingOlder || !hasMoreOlder || !activeChat || !currentUser || messages.length === 0) return;
     const oldestShown = messages[0];
@@ -403,6 +442,7 @@ export default function Chat() {
     }
   }
 
+  // Live chat doc (pinned message, admin list, disappearing timer, mute, etc).
   useEffect(() => {
     if (!activeChat || !currentUser) return;
     const { chatId } = getChatMeta();
@@ -413,6 +453,7 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat, currentUser]);
 
+  // Reset per-chat UI state (view-once reveals, wallpaper, search) when switching chats.
   useEffect(() => {
     setRevealedIds(new Set());
     setShowSearchBar(false);
@@ -426,6 +467,14 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat]);
 
+  // Mark incoming messages as delivered (direct chats only) — this is what
+  // flips a message from single tick (✓ sent, not yet delivered) to double
+  // tick (✓✓ delivered). Unlike the read receipt below, this ALWAYS runs
+  // regardless of the "Read receipts" privacy setting — WhatsApp shows
+  // delivered ticks even when read receipts are off; only the blue "read"
+  // tick is gated by that setting. Delivery here means "the recipient's
+  // client is open on this chat" (this app has no background/push-based
+  // delivery tracking) — a reasonable proxy, not true device-level delivery.
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct' || !currentUser) return;
     const { chatId } = getChatMeta();
@@ -440,6 +489,10 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeChat, currentUser]);
 
+  // Mark incoming messages as read (direct chats only — keeps group receipts simple).
+  // Respects Settings > Privacy > "Read receipts": if the reader has turned
+  // this off, we don't write readBy at all, so the sender never sees a read
+  // tick for them.
   const readReceiptsEnabled = currentProfile?.settings?.readReceipts !== false;
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct' || !currentUser || !readReceiptsEnabled) return;
@@ -455,6 +508,9 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeChat, currentUser, readReceiptsEnabled]);
 
+  // Presence heartbeat: keep our own lastSeen fresh while the app is open.
+  // Respects Settings > Privacy > "Show online status" — if off, we stop
+  // broadcasting presence entirely (and clear any stale doc from before).
   const showOnlineStatus = currentProfile?.settings?.showOnlineStatus !== false;
   useEffect(() => {
     if (!currentUser) return;
@@ -470,6 +526,7 @@ export default function Chat() {
     return () => clearInterval(interval);
   }, [currentUser, showOnlineStatus]);
 
+  // Subscribe to the other participant's presence in a direct chat.
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct') { setOtherPresence(null); return; }
     const unsub = onSnapshot(doc(db, 'presence', activeChat.person.id), (snap) => {
@@ -478,6 +535,11 @@ export default function Chat() {
     return unsub;
   }, [activeChat]);
 
+  // Subscribe to the other participant's profile just for `blocked` /
+  // `settings.whoCanMessage` — used to hide the composer/call buttons on
+  // either side of a block, or when they only accept messages from
+  // connections. UX convenience only; real enforcement for blocking is in
+  // firestore.rules (isBlockedPair).
   const [otherProfile, setOtherProfile] = useState(null);
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct') { setOtherProfile(null); return; }
@@ -496,11 +558,16 @@ export default function Chat() {
     otherProfile?.settings?.whoCanMessage === 'connections' &&
     !connectedPeople.some((p) => p.id === activeChat.person.id);
 
+  // ---- Typing indicator ----
+  // Throttled write (at most once every 2.5s) to chats/{chatId}.typing.{uid},
+  // plus an inactivity timer that clears it after 4s of no keystrokes.
+  // Piggy-backs on the existing chat-doc update permission (any participant
+  // can already update the chat doc per firestore.rules).
   const lastTypingWriteRef = useRef(0);
   const typingClearTimeoutRef = useRef(null);
   const TYPING_THROTTLE_MS = 2500;
   const TYPING_IDLE_MS = 4000;
-  const TYPING_STALE_MS = 6000;
+  const TYPING_STALE_MS = 6000; // reader-side: ignore a typing flag older than this
 
   function clearTypingFlag() {
     if (!activeChat || !currentUser) return;
@@ -536,6 +603,7 @@ export default function Chat() {
       .map(([uid]) => uid);
   }, [chatMeta, currentUser]);
 
+  // Listen to this user's own pending scheduled messages (across all chats).
   useEffect(() => {
     if (!currentUser) return;
     const q = query(
@@ -551,6 +619,12 @@ export default function Chat() {
     return unsub;
   }, [currentUser]);
 
+  // Poll for due scheduled messages while the app is open and send them.
+  // NOTE: this only fires while some user's browser tab is open at the
+  // scheduled time — there's no backend/cron here, so a message won't send
+  // itself while every device is fully closed. For guaranteed delivery even
+  // when apps are closed, a Firebase Cloud Function (scheduled trigger)
+  // would be needed instead.
   useEffect(() => {
     if (!currentUser) return;
     async function checkDue() {
@@ -558,6 +632,9 @@ export default function Chat() {
       const due = myScheduledMessages.filter((m) => (m.scheduledFor?.toMillis() || 0) <= now);
       for (let i = 0; i < due.length; i++) {
         const m = due[i];
+        // If several are due in the same tick, space them out past the
+        // rateLimits gap (see firestore.rules) instead of firing all at
+        // once — otherwise only the first would get through.
         if (i > 0) await new Promise((r) => setTimeout(r, 800));
         try {
           const batch = writeBatch(db);
@@ -591,6 +668,9 @@ export default function Chat() {
     return () => clearInterval(interval);
   }, [myScheduledMessages, currentUser]);
 
+  // Sweep expired disappearing messages in the currently open chat.
+  // Same limitation as scheduled messages: this only runs while someone has
+  // the chat open, since there's no backend cron in this static app.
   useEffect(() => {
     if (!activeChat || !currentUser) return;
     const { chatId } = getChatMeta();
@@ -611,6 +691,10 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeChat, currentUser]);
 
+  // Notifies everyone in a chat except the sender — used for regular
+  // messages, forwards, polls/events/attachments, everything that lands in
+  // the messages subcollection. Without this, recipients only ever found
+  // out about a new message by having Chat open already.
   function notifyOthers(participants, body, isGroup, groupName) {
     const preview = (body || '[attachment]').slice(0, 60);
     participants
@@ -658,6 +742,10 @@ export default function Chat() {
         ...(expiresAt ? { expiresAt } : {}),
         ...extra,
       });
+      // Rate-limit stamp: the messages `create` rule in firestore.rules
+      // checks that THIS doc's previous value is >700ms old before allowing
+      // the message, and (via getAfter) requires this exact write to happen
+      // in the same commit — so a client can't skip it to dodge the limit.
       batch.set(doc(db, 'rateLimits', currentUser.uid), { lastMessageAt: serverTimestamp() }, { merge: true });
       await batch.commit();
       notifyOthers(participants, body, activeChat.type === 'group', activeChat.chat?.name);
@@ -838,11 +926,14 @@ export default function Chat() {
     if (!files.length) return;
 
     if (kind === 'photo' || kind === 'video') {
+      // Preview first — see mediaPreview state + sendMediaPreviewBatch()
+      // below. object URLs are revoked either on send or on close.
       const items = files.map((file) => ({ file, kind, url: URL.createObjectURL(file) }));
       setMediaPreview({ items, activeIndex: 0, viewOnce: false, hd: false, caption: '' });
       return;
     }
 
+    // Documents: unchanged — single file, straight upload, no preview needed.
     const file = files[0];
     setUploading(true);
     try {
@@ -854,6 +945,12 @@ export default function Chat() {
     setUploading(false);
   }
 
+  // Downscales+recompresses an image client-side (mirrors WhatsApp's
+  // non-HD send) so "HD off" actually saves bandwidth instead of being a
+  // label with no effect. Videos aren't re-encoded here — doing that in the
+  // browser needs a heavy library (e.g. ffmpeg.wasm) this project doesn't
+  // include yet — so the HD toggle for video only affects upload quality
+  // hints/labeling, not the actual file size, until that's added.
   function compressImageFile(file, maxDim = 1280, quality = 0.72) {
     return new Promise((resolve) => {
       const objectUrl = URL.createObjectURL(file);
@@ -1010,35 +1107,7 @@ export default function Chat() {
     startCall([personId], callType);
   }
 
-  // Group calls from the chat thread header — same mesh WebRTC CallContext
-  // as 1-to-1 and GroupDetail.jsx group calls; just needs the other
-  // participants' uids from this group chat.
-  async function startGroupCallFromChat(callType) {
-    if (activeChat?.type !== 'group') return;
-    const { participants } = getChatMeta();
-    const others = (participants || []).filter((id) => id !== currentUser.uid);
-    if (others.length === 0) {
-      noticeDialog('No other members to call yet.');
-      return;
-    }
-    try {
-      await startCall(others, callType);
-      others.forEach((uid) => {
-        notify({
-          toUserId: uid,
-          type: 'group_call',
-          message: `${currentProfile?.name || 'Someone'} started a call in "${activeChat.chat.name}"`,
-          link: '/chat',
-          fromUserId: currentUser.uid,
-          fromUserName: currentProfile?.name || 'Member',
-          fromUserPhoto: currentProfile?.photoURL || '',
-          groupName: activeChat.chat.name,
-        });
-      });
-    } catch (err) {
-      noticeDialog(err.message || 'Could not start call');
-    }
-  }
+  // ---- Per-message WhatsApp-style option handlers ----
 
   function openMessageMenu(m) {
     setReactingTo(null);
@@ -1061,6 +1130,9 @@ export default function Chat() {
     setActiveMessageMenu(null);
   }
 
+  // Edit window mirrors common chat-app convention (WhatsApp uses 15 min) —
+  // keeps someone from silently rewriting old conversation history. Enforced
+  // both here (UX) and in firestore.rules (real enforcement).
   const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
   function canEditMessage(m) {
@@ -1167,6 +1239,8 @@ export default function Chat() {
     }
   }
 
+  // ---- Group admin control handlers ----
+
   async function toggleOnlyAdminsCanSend() {
     const { chatId } = getChatMeta();
     await updateDoc(doc(db, 'chats', chatId), {
@@ -1188,6 +1262,8 @@ export default function Chat() {
     await updateDoc(doc(db, 'chats', chatId), { admins: arrayRemove(uid) });
   }
 
+  // Admins add members directly; other members can only raise a request that
+  // waits in pendingMembers until an admin approves it.
   async function requestAddMember(personId) {
     const { chatId } = getChatMeta();
     const isAdmin = (chatMeta?.admins || []).includes(currentUser.uid);
@@ -1212,6 +1288,8 @@ export default function Chat() {
     await updateDoc(doc(db, 'chats', chatId), { pendingMembers: arrayRemove(uid) });
   }
 
+  // ---- Disappearing messages ----
+
   function canChangeDisappearing() {
     if (!activeChat) return false;
     if (activeChat.type === 'direct') return true;
@@ -1224,6 +1302,8 @@ export default function Chat() {
     await updateDoc(doc(db, 'chats', chatId), { disappearingSeconds: seconds });
     setShowDisappearingMenu(false);
   }
+
+  // ---- Forward message ----
 
   async function sendToTarget(target, body, extra = {}) {
     const isGroup = target.type === 'group';
@@ -1269,6 +1349,8 @@ export default function Chat() {
       noticeDialog('Could not forward: ' + err.message);
     }
   }
+
+  // ---- Top bar menu: wallpaper / clear chat / mute ----
 
   function selectWallpaper(key) {
     if (!activeChat) return;
@@ -1338,84 +1420,112 @@ export default function Chat() {
         {modalElement}
         {mediaPreview && createPortal(
           <div style={{
-            position: 'fixed', inset: 0, background: '#000', zIndex: 1000,
+            position: 'fixed', inset: 0, width: '100vw', height: '100dvh', background: '#000', zIndex: 2147483000,
             display: 'flex', flexDirection: 'column',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
-              <button type="button" onClick={closeMediaPreview}
-                style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>✕</button>
-              {mediaPreview.items.length > 1 && (
-                <span style={{ color: '#fff', fontSize: 13 }}>
-                  {mediaPreview.activeIndex + 1} / {mediaPreview.items.length}
-                </span>
-              )}
+            {/* Top bar — close (left), page counter (center-right), HD badge (right), like WhatsApp's send preview */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+              padding: '14px 14px 22px', flexShrink: 0,
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0))',
+            }}>
+              <button type="button" onClick={closeMediaPreview} title="Close"
+                style={{
+                  width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.14)', border: 'none', color: '#fff', cursor: 'pointer',
+                }}><IconX className="w-4 h-4" /></button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {mediaPreview.items.length > 1 && (
+                  <span style={{
+                    color: '#fff', fontSize: 12.5, fontWeight: 600, background: 'rgba(255,255,255,0.14)',
+                    borderRadius: 999, padding: '4px 10px',
+                  }}>
+                    {mediaPreview.activeIndex + 1} / {mediaPreview.items.length}
+                  </span>
+                )}
+                {mediaPreview.items[mediaPreview.activeIndex]?.kind === 'photo' && (
+                  <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, hd: !mp.hd }))}
+                    title="HD — send full quality (larger file)"
+                    style={{
+                      border: 'none', borderRadius: 999, padding: '6px 12px', cursor: 'pointer',
+                      fontSize: 12.5, fontWeight: 800, letterSpacing: 0.3,
+                      background: mediaPreview.hd ? '#4f7fff' : 'rgba(255,255,255,0.14)', color: '#fff',
+                    }}>HD</button>
+                )}
+              </div>
             </div>
 
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12 }}>
+            {/* Media */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minHeight: 0 }}>
               {mediaPreview.items[mediaPreview.activeIndex]?.kind === 'photo' ? (
                 <img src={mediaPreview.items[mediaPreview.activeIndex].url} alt=""
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               ) : (
                 <video src={mediaPreview.items[mediaPreview.activeIndex]?.url} controls
-                  style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8 }} />
+                  style={{ maxWidth: '100%', maxHeight: '100%' }} />
               )}
             </div>
 
-            {mediaPreview.items.length > 1 && (
-              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '4px 12px 12px' }}>
-                {mediaPreview.items.map((it, i) => (
-                  <div key={i} style={{ position: 'relative', flex: '0 0 auto' }}>
-                    <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, activeIndex: i }))}
-                      style={{
-                        width: 52, height: 52, borderRadius: 8, overflow: 'hidden', padding: 0,
-                        border: i === mediaPreview.activeIndex ? '2px solid #4f7fff' : '2px solid transparent',
-                        background: '#111', cursor: 'pointer',
-                      }}>
-                      {it.kind === 'photo'
-                        ? <img src={it.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <video src={it.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                    </button>
-                    <button type="button" onClick={() => removeMediaPreviewItem(i)} title="Remove"
-                      style={{
-                        position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%',
-                        border: 'none', background: '#e5484d', color: '#fff', fontSize: 11, lineHeight: '18px',
-                        padding: 0, cursor: 'pointer',
-                      }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, borderTop: '1px solid #222' }}>
-              <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, viewOnce: !mp.viewOnce }))}
-                title="View once — disappears after it's opened"
-                style={{
-                  flexShrink: 0, border: 'none', borderRadius: 999, padding: '8px 10px', cursor: 'pointer', fontSize: 16,
-                  background: mediaPreview.viewOnce ? '#4f7fff' : '#222', color: '#fff',
-                }}>1️⃣</button>
-              {mediaPreview.items[mediaPreview.activeIndex]?.kind === 'photo' && (
-                <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, hd: !mp.hd }))}
-                  title="HD — send full quality (larger file)"
-                  style={{
-                    flexShrink: 0, border: 'none', borderRadius: 999, padding: '8px 10px', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                    background: mediaPreview.hd ? '#4f7fff' : '#222', color: '#fff',
-                  }}>HD</button>
+            {/* Bottom area — gradient backdrop holding thumbnails + toggles + caption + send */}
+            <div style={{ flexShrink: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.65), rgba(0,0,0,0.15) 70%, transparent)', paddingTop: 10 }}>
+              {mediaPreview.items.length > 1 && (
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '0 12px 10px' }}>
+                  {mediaPreview.items.map((it, i) => (
+                    <div key={i} style={{ position: 'relative', flex: '0 0 auto' }}>
+                      <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, activeIndex: i }))}
+                        style={{
+                          width: 48, height: 48, borderRadius: 10, overflow: 'hidden', padding: 0,
+                          border: i === mediaPreview.activeIndex ? '2px solid #fff' : '2px solid transparent',
+                          opacity: i === mediaPreview.activeIndex ? 1 : 0.55,
+                          background: '#111', cursor: 'pointer', transition: 'opacity 120ms, border-color 120ms',
+                        }}>
+                        {it.kind === 'photo'
+                          ? <img src={it.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <video src={it.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      </button>
+                      <button type="button" onClick={() => removeMediaPreviewItem(i)} title="Remove"
+                        style={{
+                          position: 'absolute', top: -5, right: -5, width: 17, height: 17, borderRadius: '50%',
+                          border: '1.5px solid #000', background: '#e5484d', color: '#fff',
+                          padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}><IconX className="w-2.5 h-2.5" /></button>
+                    </div>
+                  ))}
+                </div>
               )}
-              <input
-                type="text" placeholder="Add a caption"
-                value={mediaPreview.caption}
-                onChange={(e) => setMediaPreview((mp) => ({ ...mp, caption: e.target.value }))}
-                style={{
-                  flex: '1 1 auto', minWidth: 0, background: '#1a1a1a', border: '1px solid #333', borderRadius: 20,
-                  padding: '8px 14px', color: '#fff', fontSize: 14,
-                }}
-              />
-              <button type="button" onClick={sendMediaPreviewBatch} disabled={uploading}
-                title="Send"
-                style={{
-                  flexShrink: 0, border: 'none', borderRadius: '50%', width: 42, height: 42, cursor: 'pointer',
-                  background: '#4f7fff', color: '#fff', fontSize: 18,
-                }}>➤</button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px 14px' }}>
+                <button type="button" onClick={() => setMediaPreview((mp) => ({ ...mp, viewOnce: !mp.viewOnce }))}
+                  title="View once — disappears after it's opened"
+                  style={{
+                    flexShrink: 0, width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: 'none', cursor: 'pointer',
+                    background: mediaPreview.viewOnce ? '#4f7fff' : 'rgba(255,255,255,0.14)', color: '#fff',
+                  }}><IconEye className="w-4 h-4" /></button>
+                <input
+                  type="text" placeholder="Add a caption"
+                  value={mediaPreview.caption}
+                  onChange={(e) => setMediaPreview((mp) => ({ ...mp, caption: e.target.value }))}
+                  style={{
+                    flex: '1 1 auto', minWidth: 0, background: 'rgba(255,255,255,0.14)', border: 'none', borderRadius: 22,
+                    padding: '10px 16px', color: '#fff', fontSize: 14.5,
+                  }}
+                />
+                <button type="button" onClick={sendMediaPreviewBatch} disabled={uploading}
+                  title="Send"
+                  style={{
+                    flexShrink: 0, border: 'none', borderRadius: '50%', width: 44, height: 44, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: '#4f7fff', color: '#fff', opacity: uploading ? 0.6 : 1,
+                    boxShadow: '0 2px 8px rgba(79,127,255,0.45)',
+                  }}><IconSend className="w-4 h-4" /></button>
+              </div>
+              {mediaPreview.viewOnce && (
+                <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 11.5, paddingBottom: 10 }}>
+                  <IconEye className="w-3 h-3" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Photo will disappear after it's opened
+                </div>
+              )}
             </div>
           </div>,
           document.body
@@ -1432,7 +1542,7 @@ export default function Chat() {
             onClick={() => activeChat.type === 'direct' && navigate(`/profile/${activeChat.person.id}`)}
             style={{ cursor: activeChat.type === 'direct' ? 'pointer' : 'default' }}
           >
-            <div className="chat-thread-name">{name}{isAdmin && ' 👑'}</div>
+            <div className="chat-thread-name">{name}{isAdmin && <IconCrown className="w-3.5 h-3.5" style={{ display: 'inline', marginLeft: 4, color: '#f5c542' }} />}</div>
             {(typingLabel || statusLabel) && (
               <div className="chat-thread-status" style={typingLabel ? { color: '#4f7fff', fontStyle: 'italic' } : undefined}>
                 {typingLabel || statusLabel}
@@ -1444,38 +1554,28 @@ export default function Chat() {
               <>
                 <button className="chat-call-btn" disabled={isBlockedEitherWay}
                   onClick={() => startCallWithPerson(activeChat.person.id, 'audio')}
-                  title="Voice call">📞</button>
+                  title="Voice call"><IconPhone className="w-4 h-4" /></button>
                 <button className="chat-call-btn" disabled={isBlockedEitherWay}
                   onClick={() => startCallWithPerson(activeChat.person.id, 'video')}
-                  title="Video call">📹</button>
+                  title="Video call"><IconVideo className="w-4 h-4" /></button>
               </>
             )}
-            {activeChat.type === 'group' && groupParticipantIds.length > 1 && (
-              <>
-                <button className="chat-call-btn" onClick={() => startGroupCallFromChat('audio')} title="Voice call">📞</button>
-                <button className="chat-call-btn" onClick={() => startGroupCallFromChat('video')} title="Video call">📹</button>
-              </>
+            {activeChat.type === 'group' && (
+              <button className="chat-call-btn" onClick={() => setShowManageGroup((v) => !v)} title={t('chat.manageGroup')}><IconSettings className="w-4 h-4" /></button>
             )}
-            {/* Single merged menu for direct AND group chats — "Manage
-                group" (only-admins-can-send, members, pending requests, add
-                member) is now the first item inside this ⋮ menu instead of
-                a separate ⚙️ icon next to it. */}
-            <button className="chat-call-btn" onClick={() => setShowChatMenu((v) => !v)} title={t('chat.moreOptions')}>⋮</button>
+            <button className="chat-call-btn" onClick={() => setShowChatMenu((v) => !v)} title={t('chat.moreOptions')}><IconMoreVertical className="w-4 h-4" /></button>
           </div>
         </div>
 
         {showChatMenu && (
           <div className="chat-dropdown-menu">
-            {activeChat.type === 'group' && (
-              <button className="attach-item" onClick={() => { setShowManageGroup((v) => !v); setShowChatMenu(false); }}>
-                ⚙️ {t('chat.manageGroup')}
-              </button>
-            )}
-            <button className="attach-item" onClick={() => { setShowSearchBar((v) => !v); setShowChatMenu(false); }}>🔍 {t('chat.searchInChat')}</button>
-            <button className="attach-item" onClick={() => { setShowWallpaperPicker((v) => !v); setShowChatMenu(false); }}>🖼️ {t('chat.wallpaper')}</button>
-            <button className="attach-item" onClick={() => { setShowDisappearingMenu((v) => !v); setShowChatMenu(false); }}>⏳ {t('chat.disappearing')}</button>
-            <button className="attach-item" onClick={clearChatForMe}>🧹 {t('chat.clearChat')}</button>
-            <button className="attach-item" onClick={() => { toggleMute(); setShowChatMenu(false); }}>{isMuted ? `🔔 ${t('chat.unmute')}` : `🔕 ${t('chat.mute')}`}</button>
+            <button className="attach-item" onClick={() => { setShowSearchBar((v) => !v); setShowChatMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconSearch className="w-4 h-4" /> {t('chat.searchInChat')}</button>
+            <button className="attach-item" onClick={() => { setShowWallpaperPicker((v) => !v); setShowChatMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconImage className="w-4 h-4" /> {t('chat.wallpaper')}</button>
+            <button className="attach-item" onClick={() => { setShowDisappearingMenu((v) => !v); setShowChatMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconClock className="w-4 h-4" /> {t('chat.disappearing')}</button>
+            <button className="attach-item" onClick={clearChatForMe} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconTrash2 className="w-4 h-4" /> {t('chat.clearChat')}</button>
+            <button className="attach-item" onClick={() => { toggleMute(); setShowChatMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {isMuted ? (<><IconBell className="w-4 h-4" /> {t('chat.unmute')}</>) : (<><IconBellOff className="w-4 h-4" /> {t('chat.mute')}</>)}
+            </button>
             {activeChat.type === 'direct' && (
               <>
                 <button
@@ -1484,10 +1584,13 @@ export default function Chat() {
                     setShowChatMenu(false);
                     toggleBlockPerson(activeChat.person.id, (currentProfile?.blocked || []).includes(activeChat.person.id));
                   }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8 }}
                 >
-                  {(currentProfile?.blocked || []).includes(activeChat.person.id) ? '✅ Unblock' : '🚫 Block'} {activeChat.person.name}
+                  {(currentProfile?.blocked || []).includes(activeChat.person.id)
+                    ? (<><IconCheck className="w-4 h-4" /> Unblock</>)
+                    : (<><IconBan className="w-4 h-4" /> Block</>)} {activeChat.person.name}
                 </button>
-                <button className="attach-item" onClick={() => { setReportingPerson(true); setShowChatMenu(false); }}>🚩 Report {activeChat.person.name}</button>
+                <button className="attach-item" onClick={() => { setReportingPerson(true); setShowChatMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconFlag className="w-4 h-4" /> Report {activeChat.person.name}</button>
               </>
             )}
           </div>
@@ -1539,7 +1642,7 @@ export default function Chat() {
 
         {chatMeta?.disappearingSeconds > 0 && (
           <div style={{ padding: '4px 12px', fontSize: 12, opacity: 0.7 }}>
-            ⏳ Disappearing messages: {DISAPPEARING_OPTIONS.find((o) => o.key === chatMeta.disappearingSeconds)?.label || 'On'}
+            <IconClock className="w-4 h-4" style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} /> Disappearing messages: {DISAPPEARING_OPTIONS.find((o) => o.key === chatMeta.disappearingSeconds)?.label || 'On'}
           </div>
         )}
 
@@ -1564,7 +1667,7 @@ export default function Chat() {
                 const memberIsAdmin = (chatMeta?.admins || []).includes(uid);
                 return (
                   <div className="group-member-row" key={uid}>
-                    <span className="member-name">{p.name}{memberIsAdmin ? ' 👑' : ''}</span>
+                    <span className="member-name">{p.name}{memberIsAdmin && <IconCrown className="w-3.5 h-3.5" style={{ display: 'inline', marginLeft: 4, color: '#f5c542' }} />}</span>
                     {isAdmin && uid !== currentUser.uid && (
                       memberIsAdmin
                         ? <button className="btn btn-ghost btn-sm" onClick={() => removeAdmin(uid)}>Remove admin</button>
@@ -1618,7 +1721,7 @@ export default function Chat() {
 
         {chatMeta?.pinnedMessageId && (
           <div className="pinned-banner" style={{ padding: '8px 12px', background: '#f9731622', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <span>📌 {chatMeta.pinnedMessageText}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconMapPin className="w-3.5 h-3.5" /> {chatMeta.pinnedMessageText}</span>
             <button className="btn btn-ghost btn-sm" onClick={unpinMessage}>Unpin</button>
           </div>
         )}
@@ -1627,7 +1730,7 @@ export default function Chat() {
           <div className="scheduled-banner" style={{ padding: '8px 12px', background: '#4f7fff15', fontSize: 13 }}>
             {pendingForThisChat.map((m) => (
               <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span>🕒 "{m.text}" — {formatScheduledFor(m.scheduledFor)}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconClock className="w-3.5 h-3.5" /> "{m.text}" — {formatScheduledFor(m.scheduledFor)}</span>
                 <button className="btn btn-ghost btn-sm" onClick={() => cancelScheduledMessage(m.id)}>Cancel</button>
               </div>
             ))}
@@ -1638,7 +1741,7 @@ export default function Chat() {
           {hasMoreOlder && !searchQuery.trim() && (
             <div style={{ textAlign: 'center', padding: '8px 0' }}>
               <button className="btn btn-ghost btn-sm" onClick={loadOlderMessages} disabled={loadingOlder}>
-                {loadingOlder ? 'Loading…' : '⬆️ Load older messages'}
+                {loadingOlder ? 'Loading…' : (<><IconChevronUp className="w-3.5 h-3.5" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Load older messages</>)}
               </button>
             </div>
           )}
@@ -1660,7 +1763,7 @@ export default function Chat() {
                 )}
 
                 {m.forwarded && (
-                  <div style={{ fontSize: 11, opacity: 0.6, fontStyle: 'italic', marginBottom: 2 }}>↪️ Forwarded</div>
+                  <div style={{ fontSize: 11, opacity: 0.6, fontStyle: 'italic', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><IconCornerUpRight className="w-3 h-3" /> Forwarded</div>
                 )}
 
                 {m.replyTo && (
@@ -1670,7 +1773,7 @@ export default function Chat() {
                 )}
 
                 {m.deletedForEveryone ? (
-                  <div style={{ fontStyle: 'italic', opacity: 0.6 }}>🚫 This message was deleted</div>
+                  <div style={{ fontStyle: 'italic', opacity: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}><IconBan className="w-3.5 h-3.5" /> This message was deleted</div>
                 ) : (
                   <>
                     {isViewOnceMedia ? (
@@ -1679,17 +1782,17 @@ export default function Chat() {
                           {m.attachmentType === 'photo'
                             ? <img src={m.mediaUrl} alt="" className="chat-media-img" />
                             : <video src={m.mediaUrl} controls className="chat-media-video" />}
-                          <div style={{ fontSize: 11, opacity: 0.7 }}>👁️ View once{(m.openedBy || []).length ? ' · Opened' : ''}</div>
+                          <div style={{ fontSize: 11, opacity: 0.7, display: 'flex', alignItems: 'center', gap: 4 }}><IconEye className="w-3.5 h-3.5" /> View once{(m.openedBy || []).length ? ' · Opened' : ''}</div>
                         </div>
                       ) : (revealedNow ? (
                         m.attachmentType === 'photo'
                           ? <img src={m.mediaUrl} alt="" className="chat-media-img" />
                           : <video src={m.mediaUrl} controls autoPlay className="chat-media-video" />
                       ) : openedByMe ? (
-                        <div className="btn btn-ghost btn-sm" style={{ opacity: 0.6 }}>🔒 Opened</div>
+                        <div className="btn btn-ghost btn-sm" style={{ opacity: 0.6, display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconLock className="w-3.5 h-3.5" /> Opened</div>
                       ) : (
                         <button className="btn btn-primary btn-sm" onClick={() => markViewOnceOpened(m)}>
-                          👁️ Tap to view once
+                          <IconEye className="w-3.5 h-3.5" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Tap to view once
                         </button>
                       ))
                     ) : (
@@ -1711,7 +1814,7 @@ export default function Chat() {
 
                     {m.attachmentType === 'poll' && m.poll && (
                       <div className="poll-card" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-                        <strong>📊 {m.poll.question}</strong>
+                        <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IconBarChart className="w-4 h-4" /> {m.poll.question}</strong>
                         {m.poll.options.map((opt, idx) => {
                           const voters = m.poll.votes?.[String(idx)] || [];
                           const iVoted = voters.includes(currentUser.uid);
@@ -1732,11 +1835,11 @@ export default function Chat() {
 
                     {m.attachmentType === 'event' && m.event && (
                       <div className="event-card" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                        <strong>📅 {m.event.title}</strong>
-                        {m.event.when && <span style={{ fontSize: 12 }}>🕒 {m.event.when}</span>}
-                        {m.event.location && <span style={{ fontSize: 12 }}>📍 {m.event.location}</span>}
+                        <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IconCalendar className="w-4 h-4" /> {m.event.title}</strong>
+                        {m.event.when && <span style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><IconClock className="w-3 h-3" /> {m.event.when}</span>}
+                        {m.event.location && <span style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><IconMapPin className="w-3 h-3" /> {m.event.location}</span>}
                         <button className="btn btn-sm btn-primary" onClick={() => toggleGoingEvent(m)}>
-                          {(m.event.going || []).includes(currentUser.uid) ? '✅ Going' : 'Mark as going'}
+                          {(m.event.going || []).includes(currentUser.uid) ? (<><IconCheck className="w-3.5 h-3.5" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Going</>) : 'Mark as going'}
                           {' '}({(m.event.going || []).length})
                         </button>
                       </div>
@@ -1764,27 +1867,27 @@ export default function Chat() {
                 <div className="chat-bubble-time" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {timeAgo(m.createdAt)}
                   {isMine && activeChat.type === 'direct' && (
-                    <span style={{ color: isRead ? '#4f7fff' : 'inherit' }}>{isDelivered ? '✓✓' : '✓'}</span>
+                    <span style={{ color: isRead ? '#4f7fff' : 'inherit', display: 'inline-flex' }}>{isDelivered ? <IconCheckCheck className="w-3.5 h-3.5" /> : <IconCheck className="w-3.5 h-3.5" />}</span>
                   )}
-                  {isMine && activeChat.type === 'group' && <span>✓</span>}
+                  {isMine && activeChat.type === 'group' && <span style={{ display: 'inline-flex' }}><IconCheck className="w-3.5 h-3.5" /></span>}
                 </div>
 
                 {!m.deletedForEveryone && activeMessageMenu === m.id && (
                   <div className="msg-options-menu" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, background: '#00000010', borderRadius: 8, padding: 6 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => startReply(m)}>↩️ Reply</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => startForward(m)}>↪️ Forward</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setReactingTo(reactingTo === m.id ? null : m.id)}>😀 React</button>
-                    {m.text && <button className="btn btn-ghost btn-sm" onClick={() => copyMessageText(m)}>📋 Copy</button>}
-                    <button className="btn btn-ghost btn-sm" onClick={() => pinMessage(m)}>📌 Pin</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => startReply(m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconCornerUpLeft className="w-4 h-4" /> Reply</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => startForward(m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconCornerUpRight className="w-4 h-4" /> Forward</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setReactingTo(reactingTo === m.id ? null : m.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconSmile className="w-4 h-4" /> React</button>
+                    {m.text && <button className="btn btn-ghost btn-sm" onClick={() => copyMessageText(m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconCopy className="w-4 h-4" /> Copy</button>}
+                    <button className="btn btn-ghost btn-sm" onClick={() => pinMessage(m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconMapPin className="w-4 h-4" /> Pin</button>
                     {canEditMessage(m) && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(m)}>✏️ Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconEdit className="w-4 h-4" /> Edit</button>
                     )}
-                    <button className="btn btn-ghost btn-sm" onClick={() => deleteForMe(m)}>🗑️ Delete for me</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => deleteForMe(m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconTrash2 className="w-4 h-4" /> Delete for me</button>
                     {isMine && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => deleteForEveryone(m)}>🚫 Delete for everyone</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => deleteForEveryone(m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconBan className="w-4 h-4" /> Delete for everyone</button>
                     )}
                     {!isMine && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setReportingMessage(m); setActiveMessageMenu(null); }}>🚩 Report</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setReportingMessage(m); setActiveMessageMenu(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconFlag className="w-4 h-4" /> Report</button>
                     )}
                   </div>
                 )}
@@ -1808,7 +1911,7 @@ export default function Chat() {
           <div className="forward-picker" style={{ display: 'flex', flexDirection: 'column', background: '#00000015', maxHeight: 220, overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 13 }}>
               <strong>Forward to...</strong>
-              <button className="btn btn-ghost btn-sm" onClick={() => { setShowForwardPicker(false); setForwardingMessage(null); }}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setShowForwardPicker(false); setForwardingMessage(null); }}><IconX className="w-4 h-4" /></button>
             </div>
             {forwardTargets.map((t, idx) => (
               <button
@@ -1818,7 +1921,7 @@ export default function Chat() {
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer' }}
               >
                 <span className="avatar" style={{ width: 22, height: 22, fontSize: 12 }}>
-                  {t.type === 'group' ? '👥' : (t.person.photoURL ? <img src={t.person.photoURL} alt="" /> : (t.label?.[0] || '?'))}
+                  {t.type === 'group' ? <IconUsers className="w-4 h-4" /> : (t.person.photoURL ? <img src={t.person.photoURL} alt="" /> : (t.label?.[0] || '?'))}
                 </span>
                 {t.label}
               </button>
@@ -1853,9 +1956,9 @@ export default function Chat() {
           <div className="recording-bar" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span className="recording-dot" /> {paused ? 'Recording paused' : 'Recording voice note…'}
             {!paused
-              ? <button className="btn btn-sm btn-ghost" onClick={pauseRecording}>⏸️ Lock &amp; Pause</button>
+              ? <button className="btn btn-sm btn-ghost" onClick={pauseRecording} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconLock className="w-4 h-4" /> Lock &amp; Pause</button>
               : <button className="btn btn-sm btn-ghost" onClick={resumeRecording}>▶️ Resume</button>}
-            <button className="btn btn-sm btn-ghost" onClick={discardRecording}>🗑️ Discard</button>
+            <button className="btn btn-sm btn-ghost" onClick={discardRecording} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconTrash2 className="w-4 h-4" /> Discard</button>
             <button className="btn btn-sm btn-primary" onClick={stopRecording}>Stop &amp; Send</button>
           </div>
         )}
@@ -1867,7 +1970,7 @@ export default function Chat() {
                 {qr}
               </button>
             ))}
-            <button className="quick-reply-chip quick-reply-close" onClick={() => setShowQuickReplies(false)}>✕</button>
+            <button className="quick-reply-chip quick-reply-close" onClick={() => setShowQuickReplies(false)}><IconX className="w-3.5 h-3.5" /></button>
           </div>
         )}
 
@@ -1909,25 +2012,25 @@ export default function Chat() {
 
         {replyTo && (
           <div className="reply-preview-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderLeft: '3px solid #4f7fff', background: '#4f7fff10', fontSize: 13 }}>
-            <span>↩️ Replying to <strong>{replyTo.senderId === currentUser.uid ? 'yourself' : replyTo.senderName}</strong>: {replyTo.text}</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setReplyTo(null)}>✕</button>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconCornerUpLeft className="w-3.5 h-3.5" /> Replying to <strong>{replyTo.senderId === currentUser.uid ? 'yourself' : replyTo.senderName}</strong>: {replyTo.text}</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setReplyTo(null)}><IconX className="w-3.5 h-3.5" /></button>
           </div>
         )}
 
         {editingMessage && (
           <div className="reply-preview-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderLeft: '3px solid #ffa500', background: '#ffa50010', fontSize: 13 }}>
-            <span>✏️ Editing message</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEdit}>✕</button>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconEdit className="w-3.5 h-3.5" /> Editing message</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEdit}><IconX className="w-3.5 h-3.5" /></button>
           </div>
         )}
 
         {sendBlocked || isBlockedEitherWay || isRestrictedByWhoCanMessage ? (
           <div className="only-admins-notice" style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, opacity: 0.75 }}>
             {isBlockedEitherWay
-              ? '🚫 You can\u2019t message this user.'
+              ? (<><IconBan className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />You can\u2019t message this user.</>)
               : isRestrictedByWhoCanMessage
-                ? '🔒 This person only accepts messages from connections.'
-                : '🔒 Only admins can send messages in this group.'}
+                ? (<><IconLock className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />This person only accepts messages from connections.</>)
+                : (<><IconLock className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />Only admins can send messages in this group.</>)}
           </div>
         ) : (
           <>
@@ -1952,7 +2055,7 @@ export default function Chat() {
 
             <form className="chat-input-row" onSubmit={sendMessage}>
               <button type="button" className="chat-attach-btn" onClick={() => setShowAttach((v) => !v)}>
-                {showAttach ? '✕' : '+'}
+                {showAttach ? <IconX className="w-5 h-5" /> : <IconPlus className="w-5 h-5" />}
               </button>
               <input
                 type="text"
@@ -1979,21 +2082,21 @@ export default function Chat() {
           className={'chat-list-tab' + (listTab === 'chats' ? ' active' : '')}
           onClick={() => setListTab('chats')}
         >
-          💬 Chats
+          <IconMessage className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />Chats
         </button>
         <button
           type="button"
           className={'chat-list-tab' + (listTab === 'groups' ? ' active' : '')}
           onClick={() => setListTab('groups')}
         >
-          👥 Groups{groupChats.length > 0 ? ` ${groupChats.length}` : ''}
+          <IconUsers className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />Groups{groupChats.length > 0 ? ` ${groupChats.length}` : ''}
         </button>
         <button
           type="button"
           className={'chat-list-tab' + (listTab === 'calls' ? ' active' : '')}
           onClick={() => setListTab('calls')}
         >
-          📞 Calls
+          <IconPhone className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />Calls
         </button>
         <button
           type="button"
@@ -2001,7 +2104,7 @@ export default function Chat() {
           onClick={() => (listTab === 'calls' ? setShowNewCall((v) => !v) : setShowNewGroup((v) => !v))}
           title={listTab === 'calls' ? 'New call' : 'New group chat'}
         >
-          {(listTab === 'calls' ? showNewCall : showNewGroup) ? '✕' : '+'}
+          {(listTab === 'calls' ? showNewCall : showNewGroup) ? <IconX className="w-5 h-5" /> : <IconPlus className="w-5 h-5" />}
         </button>
       </div>
 
@@ -2032,8 +2135,8 @@ export default function Chat() {
                   <span className="chat-row-name">{p.name}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" className="chat-call-btn" title="Voice call" onClick={() => startCallWithPerson(p.id, 'audio')}>📞</button>
-                  <button type="button" className="chat-call-btn" title="Video call" onClick={() => startCallWithPerson(p.id, 'video')}>📹</button>
+                  <button type="button" className="chat-call-btn" title="Voice call" onClick={() => startCallWithPerson(p.id, 'audio')}><IconPhone className="w-4 h-4" /></button>
+                  <button type="button" className="chat-call-btn" title="Video call" onClick={() => startCallWithPerson(p.id, 'video')}><IconVideo className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
@@ -2067,7 +2170,7 @@ export default function Chat() {
           )}
           {filteredGroupChats.map((chat) => (
             <div className="chat-row" key={chat.id} onClick={() => setActiveChat({ type: 'group', chat })}>
-              <div className="chat-row-avatar">👥</div>
+              <div className="chat-row-avatar"><IconUsers className="w-5 h-5" /></div>
               <div className="chat-row-body">
                 <div className="chat-row-top">
                   <span className="chat-row-name">{chat.name}</span>
@@ -2169,7 +2272,7 @@ export default function Chat() {
               <div className="chat-row" key={call.id}>
                 <div className="chat-row-avatar">
                   {isGroup
-                    ? '👥'
+                    ? <IconUsers className="w-5 h-5" />
                     : (otherPerson?.photoURL ? <img src={otherPerson.photoURL} alt="" /> : (displayName?.[0] || '?'))}
                 </div>
                 <div className="chat-row-body">
@@ -2179,7 +2282,7 @@ export default function Chat() {
                   </div>
                   <div className="chat-row-bottom">
                     <span className={'chat-row-preview' + (isMissed ? ' call-log-missed' : '')}>
-                      {call.callType === 'video' ? '📹' : '📞'} {isOutgoing ? '↗' : '↙'} {label}
+                      {call.callType === 'video' ? <IconVideo className="w-3.5 h-3.5" style={{ display: 'inline' }} /> : <IconPhone className="w-3.5 h-3.5" style={{ display: 'inline' }} />} {isOutgoing ? <IconArrowUpRight className="w-3.5 h-3.5" style={{ display: 'inline' }} /> : <IconArrowDownLeft className="w-3.5 h-3.5" style={{ display: 'inline' }} />} {label}
                     </span>
                   </div>
                 </div>
@@ -2190,7 +2293,7 @@ export default function Chat() {
                     title={call.callType === 'video' ? 'Video call back' : 'Call back'}
                     onClick={() => redialCall(call)}
                   >
-                    {call.callType === 'video' ? '📹' : '📞'}
+                    {call.callType === 'video' ? <IconVideo className="w-4 h-4" /> : <IconPhone className="w-4 h-4" />}
                   </button>
                 )}
               </div>

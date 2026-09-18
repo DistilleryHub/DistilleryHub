@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { IconAlertTriangle } from './Icons';
 
 // Catches render/lifecycle errors anywhere below it in the tree so a bug in
 // one screen shows a recoverable "something went wrong" card instead of a
@@ -33,7 +34,7 @@ export default class ErrorBoundary extends Component {
           alignItems: 'center', justifyContent: 'center', textAlign: 'center',
           padding: 24, gap: 12, background: 'var(--bg, #0b1325)', color: 'var(--muted, #8b98ac)',
         }}>
-          <div style={{ fontSize: 40 }}>⚠️</div>
+          <div style={{ color: 'var(--danger, #f5576c)' }}><IconAlertTriangle className="w-10 h-10" /></div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Kuch gadbad ho gayi</div>
           <div style={{ fontSize: 14, maxWidth: 320 }}>
             Is screen ko load karne me error aayi. Reload karke dobara try karo.

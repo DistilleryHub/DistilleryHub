@@ -8,6 +8,7 @@ import { db } from './firebase';
 import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { IconStore } from './Icons';
 import { notify } from './notify';
 
 const RFQ_CATEGORIES = [
@@ -279,7 +280,7 @@ function MyStore({ currentUser, currentProfile, toast }) {
     <>
       <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <div className="avatar" style={{ width: 48, height: 48 }}>
-          {myStore.logoURL ? <img src={myStore.logoURL} alt="" /> : (myStore.name?.[0] || '🏪')}
+          {myStore.logoURL ? <img src={myStore.logoURL} alt="" /> : (myStore.name?.[0] || <IconStore className="w-5 h-5" />)}
         </div>
         <div>
           <div className="listing-title">{myStore.name}</div>
@@ -369,7 +370,7 @@ function StoreDirectory() {
         <Link to={`/store/${s.id}`} className="card listing-card" key={s.id} style={{ display: 'block' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <div className="avatar">
-              {s.logoURL ? <img src={s.logoURL} alt="" /> : (s.name?.[0] || '🏪')}
+              {s.logoURL ? <img src={s.logoURL} alt="" /> : (s.name?.[0] || <IconStore className="w-5 h-5" />)}
             </div>
             <div>
               <div className="listing-title">{s.name}</div>

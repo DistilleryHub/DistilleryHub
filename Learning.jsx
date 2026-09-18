@@ -4,6 +4,7 @@ import {
   updateDoc, arrayUnion, arrayRemove, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { IconCheck } from './Icons';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
@@ -104,8 +105,9 @@ export default function Learning() {
                 <button
                   className={'btn btn-sm' + (done ? ' btn-primary' : ' btn-ghost')}
                   onClick={() => toggleComplete(course)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  {done ? '✓ Completed' : 'Mark complete'}
+                  {done ? (<><IconCheck className="w-3.5 h-3.5" /> Completed</>) : 'Mark complete'}
                 </button>
               </div>
               <div className="job-applicants">

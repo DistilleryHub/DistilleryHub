@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { listenBookmarks, toggleBookmark } from './bookmarks';
+import { IconX } from './Icons';
 
 const TABS = [
   { id: 'all', label: 'All' },
@@ -72,7 +73,7 @@ export default function Bookmarks() {
                 aria-label="Remove"
                 title="Remove"
               >
-                ✕
+                <IconX className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}

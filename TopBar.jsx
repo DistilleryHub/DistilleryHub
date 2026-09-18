@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { IconSearch, IconMessage, IconBell, IconMaximize, IconMinimize, IconMenu } from './Icons';
+import { IconSearch, IconMessage, IconBell, IconMaximize, IconMinimize, IconMenu, IconBookmark } from './Icons';
 
 export default function TopBar({ profile, unreadNotifications = 0, onMenuClick }) {
   const { currentUser } = useAuth();
@@ -74,7 +74,7 @@ export default function TopBar({ profile, unreadNotifications = 0, onMenuClick }
                      hover:bg-navy-cardAlt transition text-[18px]"
           aria-label="Saved"
         >
-          🔖
+          <IconBookmark className="w-5 h-5" />
         </Link>
 
         {/* Fullscreen toggle — desktop only, hidden on touch/mobile */}

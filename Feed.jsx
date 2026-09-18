@@ -12,6 +12,7 @@ import { notify } from './notify';
 import { followUser, unfollowUser, listenMyFollowing } from './follows';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 import ShareSheet from './ShareSheet';
+import { IconThumbsUp, IconComment, IconRepeat, IconBookmark, IconSend, IconCamera, IconVideo, IconClock, IconX } from './Icons';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -70,7 +71,7 @@ function Comments({ postId, postAuthorId, currentUser, currentProfile }) {
         <div className="comment-row" key={c.id}>
           <span className="comment-author">{c.authorName}</span> {c.text}
           {c.authorId === currentUser.uid && (
-            <button className="btn btn-ghost btn-sm" onClick={() => removeComment(c)}>✕</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => removeComment(c)}><IconX className="w-3.5 h-3.5" /></button>
           )}
         </div>
       ))}
@@ -406,21 +407,22 @@ export default function Feed() {
           </div>
         )}
         <div className="composer-actions">
-          <label className="btn btn-ghost btn-sm">
-            📷 Photo
+          <label className="btn btn-ghost btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <IconCamera className="w-4 h-4" /> Photo
             <input type="file" accept="image/*" hidden onChange={handleMediaPick} />
           </label>
-          <label className="btn btn-ghost btn-sm">
-            🎥 Video
+          <label className="btn btn-ghost btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <IconVideo className="w-4 h-4" /> Video
             <input type="file" accept="video/*" hidden onChange={handleMediaPick} />
           </label>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             onClick={() => setShowSchedule((v) => !v)}
             disabled={!text.trim() && !media}
           >
-            🕒 Schedule
+            <IconClock className="w-4 h-4" /> Schedule
           </button>
           <button type="submit" className="btn btn-primary btn-sm" disabled={posting || (!text.trim() && !media)}>
             {posting ? <span className="spinner" /> : 'Post'}
@@ -450,7 +452,7 @@ export default function Feed() {
           <h3 className="settings-subheading">Scheduled posts</h3>
           {myScheduledPosts.map((p) => (
             <div className="scheduled-banner" key={p.id} style={{ padding: '8px 12px', background: '#4f7fff15', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>🕒 "{(p.text || '(media post)').slice(0, 60)}" — {p.scheduledFor?.toDate ? p.scheduledFor.toDate().toLocaleString() : ''}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconClock className="w-3.5 h-3.5" /> "{(p.text || '(media post)').slice(0, 60)}" — {p.scheduledFor?.toDate ? p.scheduledFor.toDate().toLocaleString() : ''}</span>
               <button className="btn btn-ghost btn-sm" onClick={() => cancelScheduledPost(p.id)}>Cancel</button>
             </div>
           ))}
@@ -515,23 +517,26 @@ export default function Feed() {
               type="button"
               className={'btn btn-ghost btn-sm' + (post.likes?.includes(currentUser.uid) ? ' active' : '')}
               onClick={() => toggleLike(post)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              👍 {post.likes?.length || 0}
+              <IconThumbsUp className="w-4 h-4" /> {post.likes?.length || 0}
             </button>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => setOpenComments(openComments === post.id ? null : post.id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              💬 Comments
+              <IconComment className="w-4 h-4" /> Comments
             </button>
             {!post.sharedFrom && (
               <button
                 type="button"
                 className={'btn btn-ghost btn-sm' + (post.shares?.includes(currentUser.uid) ? ' active' : '')}
                 onClick={() => sharePost(post)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                🔁 Share {post.shares?.length || 0}
+                <IconRepeat className="w-4 h-4" /> Share {post.shares?.length || 0}
               </button>
             )}
             <button
@@ -545,8 +550,10 @@ export default function Feed() {
                 imageURL: post.authorPhotoURL || '',
                 link: '/',
               })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              {bookmarkIds.has(bookmarkDocId('post', post.id)) ? '🔖 Saved' : '🔖 Save'}
+              <IconBookmark className="w-4 h-4" filled={bookmarkIds.has(bookmarkDocId('post', post.id))} />
+              {bookmarkIds.has(bookmarkDocId('post', post.id)) ? 'Saved' : 'Save'}
             </button>
             <button
               type="button"
@@ -556,8 +563,9 @@ export default function Feed() {
                 snippet: (post.text || '').slice(0, 100),
                 link: window.location.href,
               })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              📤 Share
+              <IconSend className="w-4 h-4" /> Share
             </button>
           </div>
           {openComments === post.id && (

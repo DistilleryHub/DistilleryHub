@@ -6,6 +6,7 @@ import { db } from './firebase';
 import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { IconFileText, IconImage, IconFolder } from './Icons';
 
 function formatSize(bytes) {
   if (!bytes) return '';
@@ -16,13 +17,13 @@ function formatSize(bytes) {
 
 function fileIcon(name = '') {
   const ext = name.split('.').pop().toLowerCase();
-  if (['pdf'].includes(ext)) return '📕';
-  if (['doc', 'docx'].includes(ext)) return '📘';
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return '📗';
-  if (['ppt', 'pptx'].includes(ext)) return '📙';
-  if (['zip', 'rar', '7z'].includes(ext)) return '🗜️';
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return '🖼️';
-  return '📄';
+  if (['pdf'].includes(ext)) return <IconFileText className="w-5 h-5" style={{ color: '#e5484d' }} />;
+  if (['doc', 'docx'].includes(ext)) return <IconFileText className="w-5 h-5" style={{ color: '#4f7fff' }} />;
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return <IconFileText className="w-5 h-5" style={{ color: '#22c55e' }} />;
+  if (['ppt', 'pptx'].includes(ext)) return <IconFileText className="w-5 h-5" style={{ color: '#f5936b' }} />;
+  if (['zip', 'rar', '7z'].includes(ext)) return <IconFolder className="w-5 h-5" style={{ color: '#a78bfa' }} />;
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <IconImage className="w-5 h-5" style={{ color: '#f5c542' }} />;
+  return <IconFileText className="w-5 h-5" />;
 }
 
 export default function FilesPage() {

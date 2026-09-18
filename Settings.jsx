@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { getAuth, sendPasswordResetEmail, deleteUser } from 'firebase/auth';
-import { db, apiFetch } from './firebase';
+import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from './LanguageContext';
 import { useTheme } from './ThemeContext';
 import { useNotifications } from './src/context/NotificationContext';
+import { IconUser, IconLock, IconEye, IconMessage, IconBriefcase, IconFolder, IconBell, IconPalette, IconGlobe, IconShield, IconCornerUpLeft, IconCheck } from './Icons';
 
 const DEFAULT_SETTINGS = {
   // Privacy & Visibility
@@ -85,26 +86,19 @@ export default function Settings() {
   });
   const [saving, setSaving] = useState(false);
 
-  // Mobile + MPIN sign-in setup — calls the Cloudflare Pages Function at
-  // /api/setMpin (see functions/api/setMpin.js), which hashes the MPIN with
-  // bcrypt server-side and stores it in the userSecrets/{uid} doc that
-  // firestore.rules locks to server-only access.
-  const [mpinForm, setMpinForm] = useState({ mobile: '', mpin: '', confirmMpin: '' });
-  const [mpinSaving, setMpinSaving] = useState(false);
-
   const MENU = [
-    { id: 'account', icon: '👤', title: t('settings.menu.account'), desc: t('settings.menu.account.desc') },
-    { id: 'security', icon: '🔒', title: t('settings.menu.security'), desc: t('settings.menu.security.desc') },
-    { id: 'privacy', icon: '👁️', title: t('settings.menu.visibility'), desc: t('settings.menu.visibility.desc') },
-    { id: 'chatcall', icon: '💬', title: t('settings.menu.chatcall'), desc: t('settings.menu.chatcall.desc') },
-    { id: 'jobsmarket', icon: '💼', title: t('settings.menu.jobsmarket'), desc: t('settings.menu.jobsmarket.desc') },
-    { id: 'content', icon: '📁', title: t('settings.menu.content'), desc: t('settings.menu.content.desc') },
-    { id: 'notifications', icon: '🔔', title: t('settings.menu.notifications'), desc: t('settings.menu.notifications.desc') },
-    { id: 'appearance', icon: '🎨', title: t('settings.menu.appearance'), desc: t('settings.menu.appearance.desc') },
-    { id: 'language', icon: '🌐', title: t('settings.menu.language'), desc: t('settings.menu.language.desc') },
+    { id: 'account', icon: <IconUser className="w-5 h-5" />, title: t('settings.menu.account'), desc: t('settings.menu.account.desc') },
+    { id: 'security', icon: <IconLock className="w-5 h-5" />, title: t('settings.menu.security'), desc: t('settings.menu.security.desc') },
+    { id: 'privacy', icon: <IconEye className="w-5 h-5" />, title: t('settings.menu.visibility'), desc: t('settings.menu.visibility.desc') },
+    { id: 'chatcall', icon: <IconMessage className="w-5 h-5" />, title: t('settings.menu.chatcall'), desc: t('settings.menu.chatcall.desc') },
+    { id: 'jobsmarket', icon: <IconBriefcase className="w-5 h-5" />, title: t('settings.menu.jobsmarket'), desc: t('settings.menu.jobsmarket.desc') },
+    { id: 'content', icon: <IconFolder className="w-5 h-5" />, title: t('settings.menu.content'), desc: t('settings.menu.content.desc') },
+    { id: 'notifications', icon: <IconBell className="w-5 h-5" />, title: t('settings.menu.notifications'), desc: t('settings.menu.notifications.desc') },
+    { id: 'appearance', icon: <IconPalette className="w-5 h-5" />, title: t('settings.menu.appearance'), desc: t('settings.menu.appearance.desc') },
+    { id: 'language', icon: <IconGlobe className="w-5 h-5" />, title: t('settings.menu.language'), desc: t('settings.menu.language.desc') },
   ];
   if (currentProfile?.isAdmin) {
-    MENU.push({ id: 'admin', icon: '🛡️', title: t('settings.menu.admin'), desc: '' });
+    MENU.push({ id: 'admin', icon: <IconShield className="w-5 h-5" />, title: t('settings.menu.admin'), desc: '' });
   }
 
   useEffect(() => {
@@ -119,8 +113,6 @@ export default function Settings() {
         company: data.company || '',
         qualifications: data.qualifications || '',
       });
-      // Prefill the mobile field if the account already has one on file.
-      setMpinForm((f) => ({ ...f, mobile: data.mobile || f.mobile }));
     });
     return unsub;
   }, [currentUser]);
@@ -168,37 +160,6 @@ export default function Settings() {
       toast(t('toast.resetSent'));
     } catch (err) {
       toast(t('toast.resetFail'));
-    }
-  }
-
-  async function handleSetMpin(e) {
-    e.preventDefault();
-    const mobile = mpinForm.mobile.trim();
-    const mpin = mpinForm.mpin.trim();
-    const confirmMpin = mpinForm.confirmMpin.trim();
-
-    if (!/^\d{10}$/.test(mobile)) {
-      toast('Mobile number 10 digit ka hona chahiye.');
-      return;
-    }
-    if (!/^\d{4,6}$/.test(mpin)) {
-      toast('MPIN 4 se 6 digit ka hona chahiye.');
-      return;
-    }
-    if (mpin !== confirmMpin) {
-      toast('Dono MPIN match nahi kar rahe.');
-      return;
-    }
-
-    setMpinSaving(true);
-    try {
-      await apiFetch('/api/setMpin', { body: { mobile, mpin } });
-      toast('MPIN set ho gaya. Ab Mobile + MPIN se sign in kar sakte ho.');
-      setMpinForm((f) => ({ ...f, mpin: '', confirmMpin: '' }));
-    } catch (err) {
-      toast(err?.message || 'MPIN set nahi ho paya. Baad mein try karo.');
-    } finally {
-      setMpinSaving(false);
     }
   }
 
@@ -263,8 +224,8 @@ export default function Settings() {
       {activeTab && (
         <div className="settings-panel">
           <div className="settings-detail-header">
-            <button type="button" className="settings-detail-back" onClick={() => setActiveTab(null)}>
-              ← {t('settings.back')}
+            <button type="button" className="settings-detail-back" onClick={() => setActiveTab(null)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <IconCornerUpLeft className="w-4 h-4" /> {t('settings.back')}
             </button>
             <h2>{activeMenuItem?.title}</h2>
           </div>
@@ -323,49 +284,6 @@ export default function Settings() {
               <button className="btn btn-secondary" onClick={handlePasswordReset}>
                 {t('settings.changePassword')}
               </button>
-
-              <h3 className="settings-subheading">Mobile + MPIN sign-in</h3>
-              <p className="settings-toggle-hint" style={{ marginBottom: 10 }}>
-                Mobile number aur MPIN set karo taaki agli baar Google/password ke bina, seedha Mobile + MPIN se sign in kar sako.
-              </p>
-              <form onSubmit={handleSetMpin} className="settings-form">
-                <label className="settings-field">
-                  <span>Mobile number</span>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    placeholder="10 digit mobile number"
-                    value={mpinForm.mobile}
-                    onChange={(e) => setMpinForm((f) => ({ ...f, mobile: e.target.value.replace(/\D/g, '') }))}
-                  />
-                </label>
-                <label className="settings-field">
-                  <span>Naya MPIN</span>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="4-6 digit MPIN"
-                    value={mpinForm.mpin}
-                    onChange={(e) => setMpinForm((f) => ({ ...f, mpin: e.target.value.replace(/\D/g, '') }))}
-                  />
-                </label>
-                <label className="settings-field">
-                  <span>MPIN dobara likho</span>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="MPIN confirm karo"
-                    value={mpinForm.confirmMpin}
-                    onChange={(e) => setMpinForm((f) => ({ ...f, confirmMpin: e.target.value.replace(/\D/g, '') }))}
-                  />
-                </label>
-                <button className="btn btn-primary" type="submit" disabled={mpinSaving}>
-                  {mpinSaving ? 'Saving…' : 'MPIN Set/Update karo'}
-                </button>
-              </form>
 
               <h3 className="settings-subheading danger-zone-heading">{t('settings.dangerZone')}</h3>
               <div className="danger-zone">
@@ -588,7 +506,7 @@ export default function Settings() {
                           border: `2px solid ${preset.swatch.accent}`,
                         }}
                       />
-                      {preset.emoji} {preset.label}
+                      {preset.label}
                     </button>
                   ))}
                 </div>
@@ -606,7 +524,7 @@ export default function Settings() {
                       style={{ background: c.value }}
                       onClick={() => setAccent(c.value)}
                     >
-                      {accent === c.value ? '✓' : ''}
+                      {accent === c.value ? <IconCheck className="w-3.5 h-3.5" /> : ''}
                     </button>
                   ))}
                 </div>
@@ -636,7 +554,7 @@ export default function Settings() {
                       {l.label}
                       <span className="language-native">{l.native}</span>
                     </span>
-                    {lang === l.code && <span className="language-check">✓</span>}
+                    {lang === l.code && <span className="language-check"><IconCheck className="w-3.5 h-3.5" /></span>}
                   </button>
                 ))}
               </div>

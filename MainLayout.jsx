@@ -6,17 +6,18 @@ import { useAuth } from './AuthContext';
 import { useLanguage } from './LanguageContext';
 import TopBar from './TopBar';
 import BottomNav from './BottomNav';
+import { IconUsers, IconBriefcase, IconNewspaper, IconShoppingCart, IconFolder, IconGraduationCap, IconSettings, IconShield, IconAlertTriangle } from './Icons';
 
 // Everything that isn't one of the 6 fixed bottom-nav tabs lives behind "Menu".
 // (Videos now has its own bottom-nav tab, so it's removed from this list.)
 const MENU_ITEMS = [
-  { to: '/groups', icon: '🧑‍🤝‍🧑', key: 'nav.groups' },
-  { to: '/jobs', icon: '💼', key: 'nav.jobs' },
-  { to: '/articles', icon: '📰', key: 'nav.articles' },
-  { to: '/market', icon: '🛒', key: 'nav.market' },
-  { to: '/files', icon: '📁', key: 'nav.files' },
-  { to: '/learning', icon: '🎓', key: 'nav.learning' },
-  { to: '/settings', icon: '⚙️', key: 'nav.settings' },
+  { to: '/groups', icon: IconUsers, key: 'nav.groups' },
+  { to: '/jobs', icon: IconBriefcase, key: 'nav.jobs' },
+  { to: '/articles', icon: IconNewspaper, key: 'nav.articles' },
+  { to: '/market', icon: IconShoppingCart, key: 'nav.market' },
+  { to: '/files', icon: IconFolder, key: 'nav.files' },
+  { to: '/learning', icon: IconGraduationCap, key: 'nav.learning' },
+  { to: '/settings', icon: IconSettings, key: 'nav.settings' },
 ];
 
 export default function MainLayout({ children }) {
@@ -51,8 +52,8 @@ export default function MainLayout({ children }) {
   return (
     <div className="min-h-screen bg-navy-bg text-slate-100">
       {isOffline && (
-        <div className="sticky top-0 z-[60] bg-amber-500 px-3 py-1.5 text-center text-[12.5px] font-semibold text-black">
-          ⚠️ No internet connection — some actions won't work until you're back online
+        <div className="sticky top-0 z-[60] bg-amber-500 px-3 py-1.5 text-center text-[12.5px] font-semibold text-black flex items-center justify-center gap-1.5">
+          <IconAlertTriangle className="w-4 h-4" /> No internet connection — some actions won't work until you're back online
         </div>
       )}
       <TopBar profile={currentProfile} unreadNotifications={unreadCount} onMenuClick={() => setShowMenu(true)} />
@@ -84,7 +85,7 @@ export default function MainLayout({ children }) {
                   className="flex flex-col items-center gap-1.5 text-center text-[11.5px] text-slate-300"
                 >
                   <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-navy-cardAlt text-xl">
-                    {item.icon}
+                    <item.icon className="w-5 h-5" />
                   </span>
                   {t(item.key)}
                 </NavLink>
@@ -96,7 +97,7 @@ export default function MainLayout({ children }) {
                   className="flex flex-col items-center gap-1.5 text-center text-[11.5px] text-slate-300"
                 >
                   <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-navy-cardAlt text-xl">
-                    🛡️
+                    <IconShield className="w-5 h-5" />
                   </span>
                   {t('nav.admin')}
                 </NavLink>

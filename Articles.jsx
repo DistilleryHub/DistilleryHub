@@ -10,6 +10,7 @@ import { useToast } from './ToastContext';
 import { notify } from './notify';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 import ShareSheet from './ShareSheet';
+import { IconX, IconStar, IconBookmark, IconThumbsUp, IconEye, IconSend, IconCornerUpLeft } from './Icons';
 
 const CATEGORIES = ['Distillation', 'Quality Control', 'Regulations', 'Equipment', 'Market Trends', 'Others'];
 
@@ -106,7 +107,7 @@ function ArticleComments({ articleId, articleAuthorId, currentUser, currentProfi
         <div className="comment-row" key={c.id}>
           <span className="comment-author">{c.authorName}</span> {c.text}
           {c.authorId === currentUser.uid && (
-            <button className="btn btn-ghost btn-sm" onClick={() => removeComment(c)}>✕</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => removeComment(c)}><IconX className="w-3.5 h-3.5" /></button>
           )}
         </div>
       ))}
@@ -289,9 +290,15 @@ export default function Articles() {
     const liked = openArticle.likes?.includes(currentUser.uid);
     return (
       <div className="articles-page">
-        <button className="btn btn-ghost btn-sm" onClick={() => setOpenArticle(null)}>← Back to articles</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setOpenArticle(null)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconCornerUpLeft className="w-4 h-4" /> Back to articles
+        </button>
         <div className="card article-full">
-          {openArticle.featured && <div className="badge" style={{ marginBottom: 8 }}>⭐ Article of the Month</div>}
+          {openArticle.featured && (
+            <div className="badge" style={{ marginBottom: 8, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <IconStar className="w-3.5 h-3.5" /> Article of the Month
+            </div>
+          )}
           {openArticle.coverImageURL && <img className="article-cover" src={openArticle.coverImageURL} alt="" />}
           <h2>{openArticle.title}</h2>
           <div className="article-byline">
@@ -309,14 +316,16 @@ export default function Articles() {
                 imageURL: openArticle.coverImageURL || '',
                 link: '/articles',
               })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              {savedOpen ? '🔖 Saved' : '🔖 Save'}
+              <IconBookmark className="w-4 h-4" filled={savedOpen} /> {savedOpen ? 'Saved' : 'Save'}
             </button>
             <button
               className={'btn btn-ghost btn-sm' + (liked ? ' active' : '')}
               onClick={() => toggleLike(openArticle)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              👍 {openArticle.likes?.length || 0}
+              <IconThumbsUp className="w-4 h-4" /> {openArticle.likes?.length || 0}
             </button>
             <button
               className="btn btn-ghost btn-sm"
@@ -325,8 +334,9 @@ export default function Articles() {
                 snippet: `by ${openArticle.authorName}`,
                 link: window.location.href,
               })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              📤 Share
+              <IconSend className="w-4 h-4" /> Share
             </button>
             {openArticle.authorId === currentUser.uid && (
               <button className="btn btn-ghost btn-sm" onClick={() => startEdit(openArticle)}>Edit</button>
@@ -338,7 +348,9 @@ export default function Articles() {
               openArticle.featured ? (
                 <button className="btn btn-ghost btn-sm" onClick={() => unfeature(openArticle)}>Unfeature</button>
               ) : (
-                <button className="btn btn-ghost btn-sm" onClick={() => setFeatured(openArticle)}>⭐ Set as Article of the Month</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setFeatured(openArticle)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <IconStar className="w-4 h-4" /> Set as Article of the Month
+                </button>
               )
             )}
           </div>
@@ -429,7 +441,9 @@ export default function Articles() {
 
       {featuredArticle && (
         <div className="card article-card" style={{ border: '2px solid var(--primary, #6d5efc)' }} onClick={() => openArt(featuredArticle)}>
-          <div className="badge" style={{ marginBottom: 6 }}>⭐ Article of the Month</div>
+          <div className="badge" style={{ marginBottom: 6, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <IconStar className="w-3.5 h-3.5" /> Article of the Month
+          </div>
           {featuredArticle.coverImageURL && <img className="article-thumb" src={featuredArticle.coverImageURL} alt="" />}
           <div className="article-card-body">
             <div className="article-title">{featuredArticle.title}</div>
@@ -464,7 +478,9 @@ export default function Articles() {
             </div>
             <p className="article-excerpt">{article.body.slice(0, 140)}{article.body.length > 140 ? '…' : ''}</p>
             <div className="job-actions">
-              <span className="job-applicants">👍 {article.likes?.length || 0} · 👁️ {article.viewCount || 0}</span>
+              <span className="job-applicants" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <IconThumbsUp className="w-3.5 h-3.5" /> {article.likes?.length || 0} · <IconEye className="w-3.5 h-3.5" /> {article.viewCount || 0}
+              </span>
               <button
                 className={'btn btn-ghost btn-sm' + (bookmarkIds.has(bookmarkDocId('article', article.id)) ? ' active' : '')}
                 onClick={(e) => {
@@ -478,8 +494,10 @@ export default function Articles() {
                     link: '/articles',
                   });
                 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                {bookmarkIds.has(bookmarkDocId('article', article.id)) ? '🔖 Saved' : '🔖 Save'}
+                <IconBookmark className="w-4 h-4" filled={bookmarkIds.has(bookmarkDocId('article', article.id))} />
+                {bookmarkIds.has(bookmarkDocId('article', article.id)) ? 'Saved' : 'Save'}
               </button>
               <button
                 className="btn btn-ghost btn-sm"
@@ -491,8 +509,9 @@ export default function Articles() {
                     link: `${window.location.origin}${window.location.pathname}`,
                   });
                 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                📤 Share
+                <IconSend className="w-4 h-4" /> Share
               </button>
               {article.authorId === currentUser.uid && (
                 <button

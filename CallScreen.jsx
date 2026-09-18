@@ -4,6 +4,7 @@ import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useCall } from './CallContext';
 import { getSharedAudioContext } from './callSounds';
+import { IconMic, IconMicOff, IconVolume, IconVolumeMute, IconVideo, IconVideoOff, IconRefreshCw, IconPhone } from './Icons';
 
 const profileCache = {};
 
@@ -52,10 +53,10 @@ function CallTimer({ startedAt }) {
 }
 
 const QUALITY_STYLES = {
-  Excellent: { color: '#3ddc84', dot: '🟢' },
-  Good: { color: '#f5c542', dot: '🟡' },
-  Poor: { color: '#e05555', dot: '🔴' },
-  Reconnecting: { color: '#e05555', dot: '🔄' },
+  Excellent: { color: 'var(--success)' },
+  Good: { color: 'var(--warning)' },
+  Poor: { color: 'var(--danger)' },
+  Reconnecting: { color: 'var(--danger)' },
 };
 
 function QualityBadge({ stats }) {
@@ -70,9 +71,13 @@ function QualityBadge({ stats }) {
     <span
       className="call-quality-badge"
       title={detail || undefined}
-      style={{ color: style.color, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+      style={{ color: style.color, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
     >
-      {style.dot} {quality}
+      <span style={{
+        width: 7, height: 7, borderRadius: '50%', background: style.color, display: 'inline-block',
+        animation: quality === 'Reconnecting' ? 'pulse 1s ease-in-out infinite' : 'none',
+      }} />
+      {quality}
     </span>
   );
 }
@@ -157,27 +162,27 @@ function CallControlsBar({
   return (
     <div className="call-active-controls">
       <button className={'call-control-btn' + (muted ? ' active' : '')} onClick={onToggleMute} aria-label="Toggle mute">
-        {muted ? '🔇' : '🎙️'}
+        {muted ? <IconMicOff className="w-5 h-5" /> : <IconMic className="w-5 h-5" />}
       </button>
 
       <button className={'call-control-btn' + (speakerOn ? ' active' : '')} onClick={onToggleSpeaker} aria-label="Toggle speaker">
-        🔊
+        {speakerOn ? <IconVolume className="w-5 h-5" /> : <IconVolumeMute className="w-5 h-5" />}
       </button>
 
       {isVideoCall && (
         <button className={'call-control-btn' + (videoOff ? ' active' : '')} onClick={onToggleVideo} aria-label="Toggle camera">
-          {videoOff ? '📷' : '🎥'}
+          {videoOff ? <IconVideoOff className="w-5 h-5" /> : <IconVideo className="w-5 h-5" />}
         </button>
       )}
 
       {isVideoCall && (
         <button className="call-control-btn" onClick={onSwitchCamera} aria-label="Switch front/back camera">
-          🔄
+          <IconRefreshCw className="w-5 h-5" />
         </button>
       )}
 
       <button className="call-btn call-btn-decline call-btn-end" onClick={onEnd} aria-label={endLabel || 'End call'}>
-        <span>📞</span>
+        <span><IconPhone className="w-6 h-6" /></span>
       </button>
     </div>
   );
@@ -208,8 +213,8 @@ function IncomingCallOverlay({ call, onAccept, onDecline }) {
         <p className="call-ringing-text">is calling…</p>
       </div>
       <div className="call-incoming-actions">
-        <button className="call-btn call-btn-decline" onClick={onDecline} aria-label="Decline call"><span>📞</span></button>
-        <button className="call-btn call-btn-accept" onClick={onAccept} aria-label="Accept call"><span>📞</span></button>
+        <button className="call-btn call-btn-decline" onClick={onDecline} aria-label="Decline call"><span><IconPhone className="w-6 h-6" /></span></button>
+        <button className="call-btn call-btn-accept" onClick={onAccept} aria-label="Accept call"><span><IconPhone className="w-6 h-6" /></span></button>
       </div>
       <div className="call-incoming-labels">
         <span>Decline</span>
@@ -329,8 +334,9 @@ function OneOnOneActiveLayout({
         <button
           className="call-audio-unblock-btn"
           onClick={() => { remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => {}); }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          🔊 Tap to enable sound
+          <IconVolume className="w-4 h-4" /> Tap to enable sound
         </button>
       )}
 

@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { collection, doc, getDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { useLanguage } from './LanguageContext';
+import { IconStore } from './Icons';
 
 export default function StoreDetail() {
   const { storeId } = useParams();
@@ -35,7 +36,7 @@ export default function StoreDetail() {
 
       <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
         <div className="avatar" style={{ width: 56, height: 56 }}>
-          {store.logoURL ? <img src={store.logoURL} alt="" /> : (store.name?.[0] || '🏪')}
+          {store.logoURL ? <img src={store.logoURL} alt="" /> : (store.name?.[0] || <IconStore className="w-6 h-6" />)}
         </div>
         <div>
           <div className="listing-title">{store.name}</div>

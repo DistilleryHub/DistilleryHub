@@ -9,6 +9,7 @@ import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
+import { IconFlask } from './Icons';
 
 const CATEGORIES = [
   'Fermentation', 'Distillation', 'Plant Operations', 'Quality & Lab',
@@ -186,7 +187,7 @@ export default function Groups() {
                 {g.coverPhotoURL ? (
                   <img className="group-card-cover" src={g.coverPhotoURL} alt="" />
                 ) : (
-                  <div className="group-card-cover group-card-cover-placeholder">🥃</div>
+                  <div className="group-card-cover group-card-cover-placeholder"><IconFlask className="w-7 h-7" /></div>
                 )}
                 <div className="group-card-name">{g.name}</div>
                 <div className="job-meta">{g.category} • {g.memberCount || 0} members</div>

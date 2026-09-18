@@ -13,25 +13,21 @@ export const THEMES = [
   {
     id: 'navy-dark',
     label: 'Navy Dark',
-    emoji: '🌙',
     swatch: { bg: '#0b1325', card: '#131e36', accent: '#4f7fff' },
   },
   {
     id: 'light',
     label: 'Light',
-    emoji: '☀️',
     swatch: { bg: '#f4f2ee', card: '#ffffff', accent: '#0369a1' },
   },
   {
     id: 'distillery-green',
     label: 'Distillery Green',
-    emoji: '🥃',
     swatch: { bg: '#071a14', card: '#0f2e23', accent: '#10b981' },
   },
   {
     id: 'amber-dark',
     label: 'Amber Dark',
-    emoji: '🔥',
     swatch: { bg: '#1a1508', card: '#262015', accent: '#f59e0b' },
   },
 ];

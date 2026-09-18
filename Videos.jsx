@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
 import { notify } from './notify';
+import { IconX, IconTrash2, IconUpload } from './Icons';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 import { uploadToCloudinaryWithProgress } from './uploadUtils';
 import ShareSheet from './ShareSheet';
@@ -100,7 +101,7 @@ function VideoCommentsSheet({ video, currentUser, currentProfile, onClose }) {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <h3 style={{ margin: 0 }}>Comments</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}><IconX className="w-4 h-4" /></button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', marginBottom: 10 }}>
@@ -110,7 +111,7 @@ function VideoCommentsSheet({ video, currentUser, currentProfile, onClose }) {
               <span className="comment-author">{c.authorName}</span> {c.text}
               <span className="status-viewer-row-time" style={{ marginLeft: 6 }}>{timeAgo(c.createdAt)}</span>
               {c.authorId === currentUser.uid && (
-                <button className="btn btn-ghost btn-sm" onClick={() => removeComment(c)}>✕</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => removeComment(c)}><IconX className="w-3.5 h-3.5" /></button>
               )}
             </div>
           ))}
@@ -246,7 +247,7 @@ function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, o
             className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white active:scale-90"
             aria-label="Delete"
           >
-            🗑️
+            <IconTrash2 className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -411,7 +412,7 @@ export default function Videos() {
           />
 
           <label className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed border-slate-600 bg-navy-cardAlt px-3 py-3 text-[13px] text-slate-300 active:scale-[0.99]">
-            {uploadFile ? `Selected: ${uploadFile.name}` : '📤 Upload a video file from your device'}
+            {uploadFile ? `Selected: ${uploadFile.name}` : (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconUpload className="w-4 h-4" /> Upload a video file from your device</span>)}
             <input type="file" accept="video/*" hidden onChange={handleFilePick} />
           </label>
           {uploadPreview && (

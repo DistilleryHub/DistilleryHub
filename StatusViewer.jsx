@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
+import { IconX, IconEye } from './Icons';
 
 const STORY_DURATION = 5000; // ms per status while viewing
 
@@ -121,7 +122,7 @@ export default function StatusViewer({ group, initialIndex = 0, onClose }) {
           {item.authorPhotoURL ? <img src={item.authorPhotoURL} alt="" /> : (item.authorName?.[0] || '?')}
         </div>
         <div className="status-viewer-name">{item.authorName}</div>
-        <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}><IconX className="w-4 h-4" /></button>
       </div>
       <div className="status-viewer-body">
         {item.mediaURL && item.mediaType === 'video' && (
@@ -146,7 +147,8 @@ export default function StatusViewer({ group, initialIndex = 0, onClose }) {
           className="status-viewers-toggle"
           onClick={() => setViewersOpen((v) => !v)}
         >
-          👁 {viewersList.length} {viewersList.length === 1 ? 'view' : 'views'}
+          <IconEye className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+          {viewersList.length} {viewersList.length === 1 ? 'view' : 'views'}
         </button>
       )}
 
@@ -154,7 +156,7 @@ export default function StatusViewer({ group, initialIndex = 0, onClose }) {
         <div className="status-viewers-panel">
           <div className="status-viewers-panel-header">
             <span>Viewed by</span>
-            <button className="btn btn-ghost btn-sm" onClick={() => setViewersOpen(false)}>✕</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setViewersOpen(false)}><IconX className="w-4 h-4" /></button>
           </div>
           {viewersList.length === 0 && (
             <div className="empty-state">No one has viewed this yet.</div>

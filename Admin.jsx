@@ -6,6 +6,7 @@ import {
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { IconThumbsUp, IconVerified } from './Icons';
 
 function daysAgo(ts) {
   if (!ts?.toDate) return Infinity;
@@ -203,7 +204,9 @@ export default function Admin() {
                       <div className="person-name">{p.authorName}</div>
                       <div className="person-headline">{(p.text || '').slice(0, 60)}</div>
                     </div>
-                    <span className="job-applicants">👍 {p.likes?.length || 0}</span>
+                    <span className="job-applicants" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <IconThumbsUp className="w-3.5 h-3.5" /> {p.likes?.length || 0}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -261,7 +264,7 @@ export default function Admin() {
                 <div className="person-name">
                   {user.name}
                   {user.isAdmin && <span className="badge">ADMIN</span>}
-                  {user.isVerified && <span className="verified-badge" title="Verified professional">✔️</span>}
+                  {user.isVerified && <span className="verified-badge" title="Verified professional"><IconVerified className="w-4 h-4" style={{ color: '#4f7fff' }} /></span>}
                 </div>
                 <div className="person-headline">{user.headline}</div>
               </div>

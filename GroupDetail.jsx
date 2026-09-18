@@ -10,6 +10,7 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { notify } from './notify';
 import { useCall } from './CallContext';
+import { IconFlask, IconMic, IconVideo, IconThumbsUp, IconComment } from './Icons';
 
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
@@ -235,7 +236,7 @@ export default function GroupDetail() {
         {group.coverPhotoURL ? (
           <img className="group-banner-cover" src={group.coverPhotoURL} alt="" />
         ) : (
-          <div className="group-banner-cover group-card-cover-placeholder">🥃</div>
+          <div className="group-banner-cover group-card-cover-placeholder"><IconFlask className="w-8 h-8" /></div>
         )}
         <h1>{group.name}</h1>
         <div className="job-meta">{group.category} • {group.memberCount || 0} members</div>
@@ -251,8 +252,12 @@ export default function GroupDetail() {
           </button>
           {isMember && members.length > 1 && (
             <>
-              <button className="btn btn-ghost btn-sm" onClick={() => startGroupCall('audio')}>🎤 Voice call</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => startGroupCall('video')}>📹 Video call</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => startGroupCall('audio')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <IconMic className="w-4 h-4" /> Voice call
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => startGroupCall('video')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <IconVideo className="w-4 h-4" /> Video call
+              </button>
             </>
           )}
         </div>
@@ -323,15 +328,17 @@ export default function GroupDetail() {
               type="button"
               className={'btn btn-ghost btn-sm' + (post.likes?.includes(currentUser.uid) ? ' active' : '')}
               onClick={() => toggleLike(post)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              👍 {post.likes?.length || 0}
+              <IconThumbsUp className="w-4 h-4" /> {post.likes?.length || 0}
             </button>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => setOpenComments(openComments === post.id ? null : post.id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              💬 Comments
+              <IconComment className="w-4 h-4" /> Comments
             </button>
           </div>
           {openComments === post.id && (

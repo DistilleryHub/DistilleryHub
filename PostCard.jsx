@@ -81,7 +81,7 @@ export default function PostCard({ post, onFollow, onLike, onComment, onRepost, 
       {/* Engagement counters */}
       <div className="flex items-center justify-between px-4 pt-3 text-[12.5px] text-slate-400">
         <span className="flex items-center gap-1">
-          <span aria-hidden>👍</span> {likeCount}
+          <IconThumbsUp className="w-3.5 h-3.5" aria-hidden /> {likeCount}
         </span>
         <span className="flex items-center gap-3">
           <span>{post.commentCount || 0} comments</span>

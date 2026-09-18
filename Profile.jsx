@@ -10,6 +10,7 @@ import { followUser, unfollowUser, listenIsFollowing } from './follows';
 import { uploadToCloudinary } from './uploadUtils';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { IconEdit, IconBan, IconCheck, IconFlag } from './Icons';
 import { notify } from './notify';
 
 export default function Profile() {
@@ -189,7 +190,7 @@ export default function Profile() {
 
           {isOwn && (
             <span className="profile-avatar-edit-badge">
-              {uploadingPhoto ? <span className="spinner" /> : '✏️'}
+              {uploadingPhoto ? <span className="spinner" /> : <IconEdit className="w-3.5 h-3.5" />}
             </span>
           )}
         </div>
@@ -241,12 +242,17 @@ export default function Profile() {
                 <button
                   className="btn btn-ghost btn-sm"
                   onClick={() => toggleBlock((currentProfile?.blocked || []).includes(uid))}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  {(currentProfile?.blocked || []).includes(uid) ? '✅ Unblock' : '🚫 Block'}
+                  {(currentProfile?.blocked || []).includes(uid)
+                    ? (<><IconCheck className="w-4 h-4" /> Unblock</>)
+                    : (<><IconBan className="w-4 h-4" /> Block</>)}
                 </button>
               )}
               {!isOwn && (
-                <button className="btn btn-ghost btn-sm" onClick={() => setReporting(true)}>🚩 Report</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setReporting(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <IconFlag className="w-4 h-4" /> Report
+                </button>
               )}
             </div>
           </>

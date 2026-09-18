@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from './firebase';
+import { IconCheck, IconAlertTriangle } from './Icons';
 
 export default function ConfirmDelete() {
   const [params] = useSearchParams();
@@ -32,14 +33,14 @@ export default function ConfirmDelete() {
         {status === 'loading' && <p>Confirm ho raha hai…</p>}
         {status === 'success' && (
           <>
-            <h2>✅ Confirm ho gaya</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconCheck className="w-5 h-5" style={{ color: 'var(--success, #22c55e)' }} /> Confirm ho gaya</h2>
             <p>{message}</p>
             <button className="btn btn-primary" onClick={() => navigate('/')}>Home jaayein</button>
           </>
         )}
         {status === 'error' && (
           <>
-            <h2>⚠️ Error</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconAlertTriangle className="w-5 h-5" style={{ color: 'var(--danger)' }} /> Error</h2>
             <p>{message}</p>
           </>
         )}
