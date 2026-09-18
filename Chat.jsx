@@ -12,7 +12,7 @@ import { useAuth } from './AuthContext';
 import { useCall } from './CallContext';
 import {
   IconClock, IconCornerUpRight, IconBarChart, IconCalendar, IconMapPin, IconUser,
-  IconImage, IconMic, IconFileText, IconX, IconEye, IconPhone, IconVideo, IconSettings,
+  IconImage, IconMic, IconFileText, IconX, IconEye, IconPhone, IconVideo,
   IconSearch, IconTrash2, IconBellOff, IconBell, IconBan, IconCheck, IconFlag, IconCrown,
   IconChevronUp, IconCornerUpLeft, IconSmile, IconCopy, IconEdit, IconLock, IconCheckCheck,
   IconUsers, IconArrowUpRight, IconArrowDownLeft, IconPlus, IconMoreVertical, IconMessage, IconSend,
@@ -173,7 +173,6 @@ export default function Chat() {
   const [showMentionPicker, setShowMentionPicker] = useState(false);
 
   // Group admin controls
-  const [showManageGroup, setShowManageGroup] = useState(false);
   const [showAddMemberList, setShowAddMemberList] = useState(false);
 
   // Forward message
@@ -1560,9 +1559,6 @@ export default function Chat() {
                   title="Video call"><IconVideo className="w-4 h-4" /></button>
               </>
             )}
-            {activeChat.type === 'group' && (
-              <button className="chat-call-btn" onClick={() => setShowManageGroup((v) => !v)} title={t('chat.manageGroup')}><IconSettings className="w-4 h-4" /></button>
-            )}
             <button className="chat-call-btn" onClick={() => setShowChatMenu((v) => !v)} title={t('chat.moreOptions')}><IconMoreVertical className="w-4 h-4" /></button>
           </div>
         </div>
@@ -1592,6 +1588,80 @@ export default function Chat() {
                 </button>
                 <button className="attach-item" onClick={() => { setReportingPerson(true); setShowChatMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><IconFlag className="w-4 h-4" /> Report {activeChat.person.name}</button>
               </>
+            )}
+
+            {activeChat.type === 'group' && (
+              <div className="chat-dropdown-groupsettings">
+                <div className="chat-dropdown-divider" />
+                <label className="group-settings-checkbox-row" style={{ padding: '8px 12px' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!chatMeta?.onlyAdminsCanSend}
+                    onChange={toggleOnlyAdminsCanSend}
+                    disabled={!isAdmin}
+                  />
+                  Only admins can send messages
+                </label>
+
+                <div className="group-settings-block" style={{ padding: '4px 12px' }}>
+                  <strong>Members</strong>
+                  {groupParticipantIds.map((uid) => {
+                    const p = uid === currentUser.uid
+                      ? { id: uid, name: 'You' }
+                      : people.find((pp) => pp.id === uid) || { id: uid, name: 'Member' };
+                    const memberIsAdmin = (chatMeta?.admins || []).includes(uid);
+                    return (
+                      <div className="group-member-row" key={uid}>
+                        <span className="member-name">{p.name}{memberIsAdmin && <IconCrown className="w-3.5 h-3.5" style={{ display: 'inline', marginLeft: 4, color: '#f5c542' }} />}</span>
+                        {isAdmin && uid !== currentUser.uid && (
+                          memberIsAdmin
+                            ? <button className="btn btn-ghost btn-sm" onClick={() => removeAdmin(uid)}>Remove admin</button>
+                            : <button className="btn btn-ghost btn-sm" onClick={() => makeAdmin(uid)}>Make admin</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {isAdmin && (chatMeta?.pendingMembers || []).length > 0 && (
+                  <div className="group-settings-block" style={{ padding: '4px 12px' }}>
+                    <strong>Pending requests</strong>
+                    {(chatMeta.pendingMembers || []).map((uid) => {
+                      const p = people.find((pp) => pp.id === uid) || { id: uid, name: 'Member' };
+                      return (
+                        <div className="group-member-row" key={uid}>
+                          <span className="member-name">{p.name}</span>
+                          <span style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn btn-primary btn-sm" onClick={() => approveMember(uid)}>Approve</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => rejectMember(uid)}>Reject</button>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="group-settings-block" style={{ padding: '4px 12px 8px' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowAddMemberList((v) => !v)}>
+                    {showAddMemberList ? 'Cancel' : '+ Add member'}
+                  </button>
+                  {showAddMemberList && (
+                    <div style={{ marginTop: 8 }}>
+                      {addableConnections.length === 0 && (
+                        <div className="group-settings-empty">No connections left to add.</div>
+                      )}
+                      {addableConnections.map((p) => (
+                        <div className="group-member-row" key={p.id}>
+                          <span className="member-name">{p.name}</span>
+                          <button className="btn btn-ghost btn-sm" onClick={() => requestAddMember(p.id)}>
+                            {isAdmin ? 'Add' : 'Request'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -1646,78 +1716,6 @@ export default function Chat() {
           </div>
         )}
 
-        {activeChat.type === 'group' && showManageGroup && (
-          <div className="group-settings-panel">
-            <label className="group-settings-checkbox-row">
-              <input
-                type="checkbox"
-                checked={!!chatMeta?.onlyAdminsCanSend}
-                onChange={toggleOnlyAdminsCanSend}
-                disabled={!isAdmin}
-              />
-              Only admins can send messages
-            </label>
-
-            <div className="group-settings-block">
-              <strong>Members</strong>
-              {groupParticipantIds.map((uid) => {
-                const p = uid === currentUser.uid
-                  ? { id: uid, name: 'You' }
-                  : people.find((pp) => pp.id === uid) || { id: uid, name: 'Member' };
-                const memberIsAdmin = (chatMeta?.admins || []).includes(uid);
-                return (
-                  <div className="group-member-row" key={uid}>
-                    <span className="member-name">{p.name}{memberIsAdmin && <IconCrown className="w-3.5 h-3.5" style={{ display: 'inline', marginLeft: 4, color: '#f5c542' }} />}</span>
-                    {isAdmin && uid !== currentUser.uid && (
-                      memberIsAdmin
-                        ? <button className="btn btn-ghost btn-sm" onClick={() => removeAdmin(uid)}>Remove admin</button>
-                        : <button className="btn btn-ghost btn-sm" onClick={() => makeAdmin(uid)}>Make admin</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {isAdmin && (chatMeta?.pendingMembers || []).length > 0 && (
-              <div className="group-settings-block">
-                <strong>Pending requests</strong>
-                {(chatMeta.pendingMembers || []).map((uid) => {
-                  const p = people.find((pp) => pp.id === uid) || { id: uid, name: 'Member' };
-                  return (
-                    <div className="group-member-row" key={uid}>
-                      <span className="member-name">{p.name}</span>
-                      <span style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-primary btn-sm" onClick={() => approveMember(uid)}>Approve</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => rejectMember(uid)}>Reject</button>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="group-settings-block">
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowAddMemberList((v) => !v)}>
-                {showAddMemberList ? 'Cancel' : '+ Add member'}
-              </button>
-              {showAddMemberList && (
-                <div style={{ marginTop: 8 }}>
-                  {addableConnections.length === 0 && (
-                    <div className="group-settings-empty">No connections left to add.</div>
-                  )}
-                  {addableConnections.map((p) => (
-                    <div className="group-member-row" key={p.id}>
-                      <span className="member-name">{p.name}</span>
-                      <button className="btn btn-ghost btn-sm" onClick={() => requestAddMember(p.id)}>
-                        {isAdmin ? 'Add' : 'Request'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {chatMeta?.pinnedMessageId && (
           <div className="pinned-banner" style={{ padding: '8px 12px', background: '#f9731622', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>

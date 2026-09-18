@@ -119,6 +119,51 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ===== Responsive app shell ===== */
+/* #root wraps the entire app (see index.html / main.jsx). Giving it a
+   max-width + centering here — once, in exactly one place — is what makes
+   the app "auto-fit" on tablets and desktops: below the max-width (phones,
+   most tablets in portrait) #root just fills the viewport as before, so
+   mobile behavior is unchanged; above it, the app becomes a centered
+   phone-width column instead of stretching full-bleed across a wide screen.
+   `transform` also makes #root the *containing block* for every
+   `position: fixed` element inside it (header, bottom nav, chat thread,
+   call overlay, modals, dropdowns, share sheets, etc.) — per the CSS spec,
+   a `transform` other than `none` on an ancestor makes fixed/absolute
+   descendants position and size themselves against THAT ancestor's box
+   instead of the true browser viewport. That's a single, permanent fix:
+   every current and future `position: fixed; inset: 0` (or left/right: 0)
+   element in the app automatically stays confined to the app column,
+   without hunting down and patching each one by hand. The one deliberate
+   exception is anything rendered with React's createPortal(..., document.body)
+   (e.g. the chat media-preview lightbox) — a portal's DOM node lives
+   outside #root as a direct child of <body>, so it isn't a descendant of
+   this containing block and correctly stays true-fullscreen edge-to-edge,
+   which is the right behavior for a full-screen photo/video viewer even on
+   desktop.
+   #app-max-width is a plain CSS custom property (not part of the app's
+   theme system) so this one number is easy to find and change later. */
+:root { --app-max-width: 600px; }
+
+#root {
+  max-width: var(--app-max-width);
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+  background: var(--bg);
+  transform: translateZ(0);
+}
+
+@media (min-width: 641px) {
+  body { background: #05070c; }
+  [data-theme="light"] body { background: #d8d5cd; }
+  #root {
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    box-shadow: 0 0 48px rgba(0, 0, 0, 0.4);
+  }
+}
+
 h1, h2, h3, h4 { font-family: var(--font-heading); color: var(--text); margin: 0 0 8px; }
 code, pre { font-family: var(--font-mono); }
 a { color: var(--primary); text-decoration: none; }
@@ -736,18 +781,20 @@ input::placeholder, textarea::placeholder { color: var(--muted-2); }
 
 /* Header "⋮" dropdown — clean floating card, matches Settings/Notifications look */
 .chat-dropdown-menu {
-  position: absolute; right: 12px; top: 56px; z-index: 20;
-  display: flex; flex-direction: column; min-width: 220px;
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); box-shadow: var(--shadow);
-  overflow: hidden; padding: 4px;
+  display: flex; flex-direction: column; width: 100%;
+  background: var(--card-bg); border-bottom: 1px solid var(--border);
+  max-height: min(60vh, 520px); overflow-y: auto;
+  padding: 4px 0;
 }
 .chat-dropdown-menu .attach-item {
   flex-direction: row; align-items: center; justify-content: flex-start;
-  gap: 10px; width: 100%; text-align: left; padding: 10px 12px;
-  border-radius: var(--radius-sm); color: var(--text); font-size: 13.5px;
+  gap: 10px; width: 100%; text-align: left; padding: 10px 16px;
+  border-radius: 0; color: var(--text); font-size: 13.5px;
 }
 .chat-dropdown-menu .attach-item:hover { background: var(--card-hover); }
+.chat-dropdown-divider { height: 1px; background: var(--border); margin: 6px 0; }
+.chat-dropdown-groupsettings .group-settings-block,
+.chat-dropdown-groupsettings .group-settings-checkbox-row { font-size: 13.5px; }
 
 .chat-call-actions { display: flex; gap: 6px; margin-left: auto; }
 .chat-call-btn {
