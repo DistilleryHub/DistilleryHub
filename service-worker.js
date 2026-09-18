@@ -12,21 +12,28 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// self.registration.scope is the SW's own root URL (e.g.
+// "https://site.pages.dev/" or "https://user.github.io/DistilleryHub/") —
+// reading the path out of it gives us the same '/' vs '/DistilleryHub/'
+// value Vite's BASE_URL gives the app at build time, but computed here at
+// runtime so this file needs zero per-platform edits.
+const BASE_URL = new URL(self.registration.scope).pathname; // '/' or '/DistilleryHub/'
+
 // App band ho ya background mein ho, tab yeh chalega
 messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title || payload.data?.title || 'DistilleryHub';
   const options = {
     body: payload.notification?.body || payload.data?.body || '',
-    icon: '/DistilleryHub/icon-192.png',
-    badge: '/DistilleryHub/icon-192.png',
-    data: { url: payload.data?.url || '/DistilleryHub/' },
+    icon: `${BASE_URL}icon-192.png`,
+    badge: `${BASE_URL}icon-192.png`,
+    data: { url: payload.data?.url || BASE_URL },
   };
   self.registration.showNotification(title, options);
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/DistilleryHub/';
+  const url = event.notification.data?.url || BASE_URL;
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
@@ -39,14 +46,14 @@ self.addEventListener('notificationclick', (event) => {
 
 // ---------------- Purana caching logic — bilkul waisa hi, unchanged ----------------
 
-const CACHE_NAME = 'distilleryhub-v3';
-const OFFLINE_URL = '/DistilleryHub/';
+const CACHE_NAME = 'distilleryhub-v4';
+const OFFLINE_URL = BASE_URL;
 
 const PRECACHE_ASSETS = [
-  '/DistilleryHub/',
-  '/DistilleryHub/index.html',
-  '/DistilleryHub/styles.css',
-  '/DistilleryHub/manifest.json',
+  BASE_URL,
+  `${BASE_URL}index.html`,
+  `${BASE_URL}styles.css`,
+  `${BASE_URL}manifest.json`,
 ];
 
 self.addEventListener('install', (event) => {
