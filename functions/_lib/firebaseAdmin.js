@@ -298,6 +298,7 @@ export function randomHex(byteLength) {
  * `fcmTokens` array never blocks the others.
  */
 async function sendPushToOneToken(env, accessToken, fcmToken, { title, body, link }) {
+  const APP_URL = env.APP_URL || 'https://distilleryhub.github.io/DistilleryHub';
   try {
     const res = await fetch(
       `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
@@ -309,8 +310,8 @@ async function sendPushToOneToken(env, accessToken, fcmToken, { title, body, lin
             token: fcmToken,
             notification: { title, body },
             webpush: {
-              fcm_options: { link: link || '/DistilleryHub/' },
-              notification: { icon: '/DistilleryHub/icon-192.png' },
+              fcm_options: { link: link || `${APP_URL}/` },
+              notification: { icon: `${APP_URL}/icon-192.png` },
             },
           },
         }),

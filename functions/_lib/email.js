@@ -9,9 +9,13 @@
 // Also verify your sending domain/email in the Resend dashboard first.
 
 const FROM = 'DistilleryHub <thedistillerymaster@gmail.com>'; // must be a verified sender in Resend
-const APP_URL = 'https://distilleryhub.github.io/DistilleryHub';
+// APP_URL: set as a Cloudflare Pages env var (Settings > Environment variables)
+// so this doesn't need a code change if the app moves domains/platforms.
+// Falls back to the GitHub Pages URL if that var isn't set.
+const DEFAULT_APP_URL = 'https://distilleryhub.github.io/DistilleryHub';
 
 export async function sendConfirmDeletionEmail(env, toEmail, name, uid, token, step) {
+  const APP_URL = env.APP_URL || DEFAULT_APP_URL;
   const link = `${APP_URL}/confirm-delete?uid=${uid}&token=${token}`;
   const html = `<p>Hi ${name || ''},</p>
     <p>Yeh confirmation ${step} of 3 hai aapke DistilleryHub account delete karne ke request ke liye.</p>
