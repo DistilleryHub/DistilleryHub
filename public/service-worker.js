@@ -39,7 +39,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // ---------------- Purana caching logic — bilkul waisa hi, unchanged ----------------
 
-const CACHE_NAME = 'distilleryhub-v2';
+const CACHE_NAME = 'distilleryhub-v4';
 const OFFLINE_URL = '/DistilleryHub/';
 
 const PRECACHE_ASSETS = [
