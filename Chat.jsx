@@ -71,15 +71,11 @@ const WALLPAPER_OPTIONS = [
   { key: 'sky', label: 'Sky', bg: 'linear-gradient(160deg,#12263a,#173a52)' },
 ];
 
-// How often we poll for due scheduled messages / expired disappearing
-// messages while the app is open.
 const BACKGROUND_CHECK_INTERVAL_MS = 20000;
 const PRESENCE_HEARTBEAT_MS = 30000;
 const ONLINE_THRESHOLD_MS = 60000;
 const MESSAGES_PAGE_SIZE = 40;
 
-// Renders *bold*, _italic_, ~strike~, "@mention" and "> quoted line" —
-// the same shortcut syntax WhatsApp recognizes while typing.
 function renderFormattedText(text) {
   if (!text) return null;
   const lines = text.split('\n');
@@ -126,12 +122,10 @@ export default function Chat() {
   const [groupChats, setGroupChats] = useState([]);
   const [directChatDocs, setDirectChatDocs] = useState([]);
   const [callLog, setCallLog] = useState([]);
-  const [callFilter, setCallFilter] = useState('all'); // 'all' | 'missed' | 'incoming' | 'outgoing'
+  const [callFilter, setCallFilter] = useState('all');
   const [showNewCall, setShowNewCall] = useState(false);
-  const [listTab, setListTab] = useState('chats'); // 'chats' | 'groups' | 'calls'
+  const [listTab, setListTab] = useState('chats');
 
-  // Bottom nav's "Calls" tab links to /chat?tab=calls so it opens straight
-  // into the existing Calls sub-tab instead of needing a separate route.
   useEffect(() => {
     const wanted = new URLSearchParams(location.search).get('tab');
     setListTab(wanted === 'calls' || wanted === 'groups' ? wanted : 'chats');
@@ -139,7 +133,7 @@ export default function Chat() {
   }, [location.search]);
   const [listSearch, setListSearch] = useState('');
   const [activeChat, setActiveChat] = useState(null);
-  const [chatMeta, setChatMeta] = useState(null); // live chat doc: pinned/admin/disappearing/mute/etc.
+  const [chatMeta, setChatMeta] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
@@ -148,35 +142,30 @@ export default function Chat() {
   const [showAttach, setShowAttach] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [uploading, setUploading] = useState(false);
-  // Photo/video "preview before send" flow — holds the picked files (as
-  // local object URLs) plus the batch-level View Once / HD toggles and an
-  // optional caption, until the user hits Send in the preview modal.
   const [mediaPreview, setMediaPreview] = useState(null);
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
 
-  // Per-message WhatsApp-style options
-  const [activeMessageMenu, setActiveMessageMenu] = useState(null); // message id
-  const [reactingTo, setReactingTo] = useState(null); // message id
-  const [replyTo, setReplyTo] = useState(null); // { id, text, senderId, senderName }
-  const [revealedIds, setRevealedIds] = useState(new Set()); // view-once media opened this session
+  const [activeMessageMenu, setActiveMessageMenu] = useState(null);
+  const [reactingTo, setReactingTo] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [revealedIds, setRevealedIds] = useState(new Set());
 
-  // @ mentions (group chats only)
   const [mentionCandidates, setMentionCandidates] = useState([]);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
 
-  // Group admin controls
   const [showManageGroup, setShowManageGroup] = useState(false);
   const [showAddMemberList, setShowAddMemberList] = useState(false);
 
-  // Forward message
   const [forwardingMessage, setForwardingMessage] = useState(null);
   const [showForwardPicker, setShowForwardPicker] = useState(false);
-  const [editingMessage, setEditingMessage] = useState(null); // { id, chatId }
+  const [editingMessage, setEditingMessage] = useState(null);
   const [reportingMessage, setReportingMessage] = useState(null);
   const [reportingPerson, setReportingPerson] = useState(false);
 
-  // Top bar (⋮) menu: search / wallpaper / clear chat / mute
+  // Top bar (⋮) menu: search / wallpaper / clear chat / mute — for group
+  // chats this is now the ONE menu (manage-group merged in below, no more
+  // separate ⚙️ icon).
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,10 +173,8 @@ export default function Chat() {
   const [wallpaperKey, setWallpaperKey] = useState('default');
   const [showDisappearingMenu, setShowDisappearingMenu] = useState(false);
 
-  // Presence (online / last seen) — only tracked for direct chats.
   const [otherPresence, setOtherPresence] = useState(null);
 
-  // Schedule Message state
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleText, setScheduleText] = useState('');
   const [scheduleWhen, setScheduleWhen] = useState('');
@@ -230,9 +217,6 @@ export default function Chat() {
     return unsub;
   }, [currentUser]);
 
-  // Ended call history for the "Calls" tab. Needs a composite index
-  // (participants array-contains + status == + createdAt orderBy) — if it's
-  // missing, Firestore logs an error with a one-click link to create it.
   useEffect(() => {
     if (!currentUser) return;
     const q = query(
@@ -254,9 +238,6 @@ export default function Chat() {
     return people.filter((p) => otherIds.includes(p.id));
   }, [connections, people, currentUser]);
 
-  // Direct chat doc (lastMessage/lastMessageAt) for each connected person,
-  // keyed by their uid — chat doc IDs are deterministic (chatIdFor), so the
-  // other participant is just whichever id in `participants` isn't mine.
   const directChatByPersonId = useMemo(() => {
     const map = {};
     directChatDocs.forEach((c) => {
@@ -266,9 +247,6 @@ export default function Chat() {
     return map;
   }, [directChatDocs, currentUser]);
 
-  // WhatsApp-style ordering: whoever you most recently messaged floats to
-  // the top; connections you haven't chatted with yet fall to the bottom,
-  // alphabetically.
   const sortedDirectList = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
     return connectedPeople
@@ -287,7 +265,6 @@ export default function Chat() {
     return groupChats.filter((c) => !q || c.name?.toLowerCase().includes(q));
   }, [groupChats, listSearch]);
 
-  // Other members of the currently open group chat, used for @mention lookups.
   const groupMembers = useMemo(() => {
     if (!activeChat || activeChat.type !== 'group' || !currentUser) return [];
     return people.filter(
@@ -323,8 +300,6 @@ export default function Chat() {
     setShowMentionPicker(false);
   }
 
-  // Finds which group members were actually @mentioned in the sent text,
-  // so we can tag the message and notify them.
   function extractMentionedUids(body) {
     if (!activeChat || activeChat.type !== 'group') return [];
     return groupMembers
@@ -370,13 +345,10 @@ export default function Chat() {
     return people.find((p) => p.id === uid)?.name || 'Member';
   }
 
-  // Messages: only the latest MESSAGES_PAGE_SIZE are kept live via onSnapshot.
-  // Older pages are fetched once (not live) via loadOlderMessages() below and
-  // appended — this is the "don't load the whole history at once" fix.
   const [olderDocs, setOlderDocs] = useState([]);
   const [hasMoreOlder, setHasMoreOlder] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const liveDocsRef = useRef([]); // latest snap.docs from the live window, desc order
+  const liveDocsRef = useRef([]);
   const olderDocsRef = useRef([]);
   useEffect(() => { olderDocsRef.current = olderDocs; }, [olderDocs]);
 
@@ -402,10 +374,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat, currentUser]);
 
-  // Anchored on the oldest currently-shown message's timestamp (not a doc
-  // snapshot reference) — a snapshot-based anchor can develop a gap if the
-  // live window shifts (new messages arriving) between page loads; a
-  // timestamp anchor stays correct regardless.
   async function loadOlderMessages() {
     if (loadingOlder || !hasMoreOlder || !activeChat || !currentUser || messages.length === 0) return;
     const oldestShown = messages[0];
@@ -435,7 +403,6 @@ export default function Chat() {
     }
   }
 
-  // Live chat doc (pinned message, admin list, disappearing timer, mute, etc).
   useEffect(() => {
     if (!activeChat || !currentUser) return;
     const { chatId } = getChatMeta();
@@ -446,7 +413,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat, currentUser]);
 
-  // Reset per-chat UI state (view-once reveals, wallpaper, search) when switching chats.
   useEffect(() => {
     setRevealedIds(new Set());
     setShowSearchBar(false);
@@ -460,14 +426,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat]);
 
-  // Mark incoming messages as delivered (direct chats only) — this is what
-  // flips a message from single tick (✓ sent, not yet delivered) to double
-  // tick (✓✓ delivered). Unlike the read receipt below, this ALWAYS runs
-  // regardless of the "Read receipts" privacy setting — WhatsApp shows
-  // delivered ticks even when read receipts are off; only the blue "read"
-  // tick is gated by that setting. Delivery here means "the recipient's
-  // client is open on this chat" (this app has no background/push-based
-  // delivery tracking) — a reasonable proxy, not true device-level delivery.
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct' || !currentUser) return;
     const { chatId } = getChatMeta();
@@ -482,10 +440,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeChat, currentUser]);
 
-  // Mark incoming messages as read (direct chats only — keeps group receipts simple).
-  // Respects Settings > Privacy > "Read receipts": if the reader has turned
-  // this off, we don't write readBy at all, so the sender never sees a read
-  // tick for them.
   const readReceiptsEnabled = currentProfile?.settings?.readReceipts !== false;
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct' || !currentUser || !readReceiptsEnabled) return;
@@ -501,9 +455,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeChat, currentUser, readReceiptsEnabled]);
 
-  // Presence heartbeat: keep our own lastSeen fresh while the app is open.
-  // Respects Settings > Privacy > "Show online status" — if off, we stop
-  // broadcasting presence entirely (and clear any stale doc from before).
   const showOnlineStatus = currentProfile?.settings?.showOnlineStatus !== false;
   useEffect(() => {
     if (!currentUser) return;
@@ -519,7 +470,6 @@ export default function Chat() {
     return () => clearInterval(interval);
   }, [currentUser, showOnlineStatus]);
 
-  // Subscribe to the other participant's presence in a direct chat.
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct') { setOtherPresence(null); return; }
     const unsub = onSnapshot(doc(db, 'presence', activeChat.person.id), (snap) => {
@@ -528,11 +478,6 @@ export default function Chat() {
     return unsub;
   }, [activeChat]);
 
-  // Subscribe to the other participant's profile just for `blocked` /
-  // `settings.whoCanMessage` — used to hide the composer/call buttons on
-  // either side of a block, or when they only accept messages from
-  // connections. UX convenience only; real enforcement for blocking is in
-  // firestore.rules (isBlockedPair).
   const [otherProfile, setOtherProfile] = useState(null);
   useEffect(() => {
     if (!activeChat || activeChat.type !== 'direct') { setOtherProfile(null); return; }
@@ -551,16 +496,11 @@ export default function Chat() {
     otherProfile?.settings?.whoCanMessage === 'connections' &&
     !connectedPeople.some((p) => p.id === activeChat.person.id);
 
-  // ---- Typing indicator ----
-  // Throttled write (at most once every 2.5s) to chats/{chatId}.typing.{uid},
-  // plus an inactivity timer that clears it after 4s of no keystrokes.
-  // Piggy-backs on the existing chat-doc update permission (any participant
-  // can already update the chat doc per firestore.rules).
   const lastTypingWriteRef = useRef(0);
   const typingClearTimeoutRef = useRef(null);
   const TYPING_THROTTLE_MS = 2500;
   const TYPING_IDLE_MS = 4000;
-  const TYPING_STALE_MS = 6000; // reader-side: ignore a typing flag older than this
+  const TYPING_STALE_MS = 6000;
 
   function clearTypingFlag() {
     if (!activeChat || !currentUser) return;
@@ -596,7 +536,6 @@ export default function Chat() {
       .map(([uid]) => uid);
   }, [chatMeta, currentUser]);
 
-  // Listen to this user's own pending scheduled messages (across all chats).
   useEffect(() => {
     if (!currentUser) return;
     const q = query(
@@ -612,12 +551,6 @@ export default function Chat() {
     return unsub;
   }, [currentUser]);
 
-  // Poll for due scheduled messages while the app is open and send them.
-  // NOTE: this only fires while some user's browser tab is open at the
-  // scheduled time — there's no backend/cron here, so a message won't send
-  // itself while every device is fully closed. For guaranteed delivery even
-  // when apps are closed, a Firebase Cloud Function (scheduled trigger)
-  // would be needed instead.
   useEffect(() => {
     if (!currentUser) return;
     async function checkDue() {
@@ -625,9 +558,6 @@ export default function Chat() {
       const due = myScheduledMessages.filter((m) => (m.scheduledFor?.toMillis() || 0) <= now);
       for (let i = 0; i < due.length; i++) {
         const m = due[i];
-        // If several are due in the same tick, space them out past the
-        // rateLimits gap (see firestore.rules) instead of firing all at
-        // once — otherwise only the first would get through.
         if (i > 0) await new Promise((r) => setTimeout(r, 800));
         try {
           const batch = writeBatch(db);
@@ -661,9 +591,6 @@ export default function Chat() {
     return () => clearInterval(interval);
   }, [myScheduledMessages, currentUser]);
 
-  // Sweep expired disappearing messages in the currently open chat.
-  // Same limitation as scheduled messages: this only runs while someone has
-  // the chat open, since there's no backend cron in this static app.
   useEffect(() => {
     if (!activeChat || !currentUser) return;
     const { chatId } = getChatMeta();
@@ -684,10 +611,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, activeChat, currentUser]);
 
-  // Notifies everyone in a chat except the sender — used for regular
-  // messages, forwards, polls/events/attachments, everything that lands in
-  // the messages subcollection. Without this, recipients only ever found
-  // out about a new message by having Chat open already.
   function notifyOthers(participants, body, isGroup, groupName) {
     const preview = (body || '[attachment]').slice(0, 60);
     participants
@@ -735,10 +658,6 @@ export default function Chat() {
         ...(expiresAt ? { expiresAt } : {}),
         ...extra,
       });
-      // Rate-limit stamp: the messages `create` rule in firestore.rules
-      // checks that THIS doc's previous value is >700ms old before allowing
-      // the message, and (via getAfter) requires this exact write to happen
-      // in the same commit — so a client can't skip it to dodge the limit.
       batch.set(doc(db, 'rateLimits', currentUser.uid), { lastMessageAt: serverTimestamp() }, { merge: true });
       await batch.commit();
       notifyOthers(participants, body, activeChat.type === 'group', activeChat.chat?.name);
@@ -919,14 +838,11 @@ export default function Chat() {
     if (!files.length) return;
 
     if (kind === 'photo' || kind === 'video') {
-      // Preview first — see mediaPreview state + sendMediaPreviewBatch()
-      // below. object URLs are revoked either on send or on close.
       const items = files.map((file) => ({ file, kind, url: URL.createObjectURL(file) }));
       setMediaPreview({ items, activeIndex: 0, viewOnce: false, hd: false, caption: '' });
       return;
     }
 
-    // Documents: unchanged — single file, straight upload, no preview needed.
     const file = files[0];
     setUploading(true);
     try {
@@ -938,12 +854,6 @@ export default function Chat() {
     setUploading(false);
   }
 
-  // Downscales+recompresses an image client-side (mirrors WhatsApp's
-  // non-HD send) so "HD off" actually saves bandwidth instead of being a
-  // label with no effect. Videos aren't re-encoded here — doing that in the
-  // browser needs a heavy library (e.g. ffmpeg.wasm) this project doesn't
-  // include yet — so the HD toggle for video only affects upload quality
-  // hints/labeling, not the actual file size, until that's added.
   function compressImageFile(file, maxDim = 1280, quality = 0.72) {
     return new Promise((resolve) => {
       const objectUrl = URL.createObjectURL(file);
@@ -1100,7 +1010,35 @@ export default function Chat() {
     startCall([personId], callType);
   }
 
-  // ---- Per-message WhatsApp-style option handlers ----
+  // Group calls from the chat thread header — same mesh WebRTC CallContext
+  // as 1-to-1 and GroupDetail.jsx group calls; just needs the other
+  // participants' uids from this group chat.
+  async function startGroupCallFromChat(callType) {
+    if (activeChat?.type !== 'group') return;
+    const { participants } = getChatMeta();
+    const others = (participants || []).filter((id) => id !== currentUser.uid);
+    if (others.length === 0) {
+      noticeDialog('No other members to call yet.');
+      return;
+    }
+    try {
+      await startCall(others, callType);
+      others.forEach((uid) => {
+        notify({
+          toUserId: uid,
+          type: 'group_call',
+          message: `${currentProfile?.name || 'Someone'} started a call in "${activeChat.chat.name}"`,
+          link: '/chat',
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+          groupName: activeChat.chat.name,
+        });
+      });
+    } catch (err) {
+      noticeDialog(err.message || 'Could not start call');
+    }
+  }
 
   function openMessageMenu(m) {
     setReactingTo(null);
@@ -1123,9 +1061,6 @@ export default function Chat() {
     setActiveMessageMenu(null);
   }
 
-  // Edit window mirrors common chat-app convention (WhatsApp uses 15 min) —
-  // keeps someone from silently rewriting old conversation history. Enforced
-  // both here (UX) and in firestore.rules (real enforcement).
   const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
   function canEditMessage(m) {
@@ -1232,8 +1167,6 @@ export default function Chat() {
     }
   }
 
-  // ---- Group admin control handlers ----
-
   async function toggleOnlyAdminsCanSend() {
     const { chatId } = getChatMeta();
     await updateDoc(doc(db, 'chats', chatId), {
@@ -1255,8 +1188,6 @@ export default function Chat() {
     await updateDoc(doc(db, 'chats', chatId), { admins: arrayRemove(uid) });
   }
 
-  // Admins add members directly; other members can only raise a request that
-  // waits in pendingMembers until an admin approves it.
   async function requestAddMember(personId) {
     const { chatId } = getChatMeta();
     const isAdmin = (chatMeta?.admins || []).includes(currentUser.uid);
@@ -1281,8 +1212,6 @@ export default function Chat() {
     await updateDoc(doc(db, 'chats', chatId), { pendingMembers: arrayRemove(uid) });
   }
 
-  // ---- Disappearing messages ----
-
   function canChangeDisappearing() {
     if (!activeChat) return false;
     if (activeChat.type === 'direct') return true;
@@ -1295,8 +1224,6 @@ export default function Chat() {
     await updateDoc(doc(db, 'chats', chatId), { disappearingSeconds: seconds });
     setShowDisappearingMenu(false);
   }
-
-  // ---- Forward message ----
 
   async function sendToTarget(target, body, extra = {}) {
     const isGroup = target.type === 'group';
@@ -1342,8 +1269,6 @@ export default function Chat() {
       noticeDialog('Could not forward: ' + err.message);
     }
   }
-
-  // ---- Top bar menu: wallpaper / clear chat / mute ----
 
   function selectWallpaper(key) {
     if (!activeChat) return;
@@ -1525,15 +1450,27 @@ export default function Chat() {
                   title="Video call">📹</button>
               </>
             )}
-            {activeChat.type === 'group' && (
-              <button className="chat-call-btn" onClick={() => setShowManageGroup((v) => !v)} title={t('chat.manageGroup')}>⚙️</button>
+            {activeChat.type === 'group' && groupParticipantIds.length > 1 && (
+              <>
+                <button className="chat-call-btn" onClick={() => startGroupCallFromChat('audio')} title="Voice call">📞</button>
+                <button className="chat-call-btn" onClick={() => startGroupCallFromChat('video')} title="Video call">📹</button>
+              </>
             )}
+            {/* Single merged menu for direct AND group chats — "Manage
+                group" (only-admins-can-send, members, pending requests, add
+                member) is now the first item inside this ⋮ menu instead of
+                a separate ⚙️ icon next to it. */}
             <button className="chat-call-btn" onClick={() => setShowChatMenu((v) => !v)} title={t('chat.moreOptions')}>⋮</button>
           </div>
         </div>
 
         {showChatMenu && (
           <div className="chat-dropdown-menu">
+            {activeChat.type === 'group' && (
+              <button className="attach-item" onClick={() => { setShowManageGroup((v) => !v); setShowChatMenu(false); }}>
+                ⚙️ {t('chat.manageGroup')}
+              </button>
+            )}
             <button className="attach-item" onClick={() => { setShowSearchBar((v) => !v); setShowChatMenu(false); }}>🔍 {t('chat.searchInChat')}</button>
             <button className="attach-item" onClick={() => { setShowWallpaperPicker((v) => !v); setShowChatMenu(false); }}>🖼️ {t('chat.wallpaper')}</button>
             <button className="attach-item" onClick={() => { setShowDisappearingMenu((v) => !v); setShowChatMenu(false); }}>⏳ {t('chat.disappearing')}</button>
