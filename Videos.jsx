@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc,
-  arrayUnion, arrayRemove, serverTimestamp,
+  collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc,
+  arrayUnion, arrayRemove, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
 import { notify } from './notify';
-import { IconX, IconTrash2, IconUpload } from './Icons';
+import { IconX, IconTrash2, IconUpload, IconEye, IconFlag, IconMoreVertical, IconCheck, IconUser, IconChevronUp } from './Icons';
 import { bookmarkDocId, toggleBookmark, listenBookmarks } from './bookmarks';
 import { uploadToCloudinaryWithProgress } from './uploadUtils';
 import ShareSheet from './ShareSheet';
+import ReportDialog from './ReportDialog';
 import { IconThumbsUp, IconComment, IconSend, IconVolume, IconVolumeMute, IconBookmark } from './Icons';
 
 function getYouTubeId(url) {
@@ -30,6 +31,14 @@ function formatDuration(totalSeconds) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+// Compact view-count formatting: 950 -> "950", 1200 -> "1.2K", 2_400_000 -> "2.4M"
+function formatCount(n) {
+  const num = n || 0;
+  if (num < 1000) return String(num);
+  if (num < 1000000) return (num / 1000).toFixed(num % 1000 >= 100 ? 1 : 0) + 'K';
+  return (num / 1000000).toFixed(1) + 'M';
+}
+
 function timeAgo(ts) {
   if (!ts?.toDate) return '';
   const diff = Date.now() - ts.toDate().getTime();
@@ -39,6 +48,25 @@ function timeAgo(ts) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
   return `${Math.floor(hrs / 24)}d`;
+}
+
+// localStorage-backed sets (per-browser, not per-account) for "Not interested"
+// hides and the "Watched" badge — these are lightweight UI conveniences, not
+// synced data, so they don't need a Firestore round-trip.
+function loadIdSet(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+function saveIdSet(key, set) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch {
+    // localStorage can fail (private mode, quota) — non-critical, ignore.
+  }
 }
 
 /** Slide-up comments panel for one video — Firestore-backed, videos/{id}/comments subcollection. */
@@ -127,16 +155,33 @@ function VideoCommentsSheet({ video, currentUser, currentProfile, onClose }) {
 }
 
 /** One full-bleed reel/video item — plays only while scrolled into view. */
-function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, onOpenComments, onOpenShare, onToggleSave }) {
+function VideoItem({
+  video, index, isOwner, isLiked, isSaved, isFollowing, isWatched, muted, setMuted,
+  onDelete, onToggleLike, onOpenComments, onOpenShare, onToggleSave, onToggleFollow,
+  onNotInterested, onOpenReport, onMarkWatched, onRegisterView, onInViewChange, preload,
+}) {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const [inView, setInView] = useState(false);
-  const [muted, setMuted] = useState(true);
   const [duration, setDuration] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
+  const [heartBurst, setHeartBurst] = useState(null); // { key, x, y } | null
+
+  // Gesture bookkeeping — refs so they don't trigger re-renders.
+  const holdTimerRef = useRef(null);
+  const tapTimerRef = useRef(null);
+  const tapCountRef = useRef(0);
+  const heartKeyRef = useRef(0);
+  const viewCountedRef = useRef(false);
 
   const ytId = getYouTubeId(video.videoURL);
   const likeCount = video.likes?.length || 0;
+  const viewCount = video.views || 0;
 
+  // ---- In-view detection (drives autoplay, active-index tracking, and
+  // one-time view counting) ----
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -149,21 +194,104 @@ function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, o
   }, []);
 
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el || ytId) return; // autoplay control only applies to native <video>, not YouTube iframes
-    if (inView) {
-      el.play().catch(() => {});
-    } else {
-      el.pause();
+    onInViewChange?.(index, inView);
+    if (inView && !viewCountedRef.current) {
+      viewCountedRef.current = true;
+      onRegisterView?.(video);
     }
-  }, [inView, ytId]);
+  }, [inView, index, onInViewChange, onRegisterView, video]);
+
+  // ---- Autoplay control (native <video> only — YouTube handles its own
+  // autoplay via the iframe URL params). Also pauses when the browser tab
+  // is hidden, and resumes if the tab becomes visible again while in view. ----
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || ytId) return;
+
+    function syncPlayback() {
+      if (inView && !document.hidden && !isHolding) {
+        el.play().catch(() => {});
+      } else {
+        el.pause();
+      }
+    }
+    syncPlayback();
+
+    document.addEventListener('visibilitychange', syncPlayback);
+    return () => document.removeEventListener('visibilitychange', syncPlayback);
+  }, [inView, ytId, isHolding]);
+
+  function scrollToSibling(direction) {
+    const el = containerRef.current;
+    const target = direction === 'next' ? el?.nextElementSibling : el?.previousElementSibling;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleEnded() {
+    onMarkWatched?.(video);
+    scrollToSibling('next');
+  }
+
+  function handleTimeUpdate(e) {
+    const el = e.currentTarget;
+    if (el.duration) setProgress((el.currentTime / el.duration) * 100);
+    // Treat "watched" as having played through most of the clip, even if
+    // the user swipes away right before the very end.
+    if (el.duration && el.currentTime / el.duration > 0.9) onMarkWatched?.(video);
+  }
+
+  // ---- Tap gesture handling: single tap = mute toggle, double tap = like
+  // (with a heart-burst animation), press-and-hold = pause while held. ----
+  function handlePointerDown(e) {
+    if (ytId) return; // gestures only apply to the native <video> surface
+    holdTimerRef.current = setTimeout(() => {
+      setIsHolding(true);
+      holdTimerRef.current = null;
+    }, 220);
+  }
+
+  function handlePointerUp(e) {
+    if (ytId) return;
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (isHolding) {
+      setIsHolding(false);
+      return; // this was a hold-to-pause gesture, not a tap
+    }
+
+    tapCountRef.current += 1;
+    if (tapCountRef.current === 1) {
+      tapTimerRef.current = setTimeout(() => {
+        // Single tap confirmed (no second tap arrived in time) — toggle mute.
+        setMuted((v) => !v);
+        tapCountRef.current = 0;
+      }, 260);
+    } else {
+      // Double tap — like + heart burst at the tap position.
+      clearTimeout(tapTimerRef.current);
+      tapCountRef.current = 0;
+      if (!isLiked) onToggleLike(video);
+      const rect = containerRef.current.getBoundingClientRect();
+      const point = e.changedTouches?.[0] || e;
+      heartKeyRef.current += 1;
+      setHeartBurst({
+        key: heartKeyRef.current,
+        x: (point.clientX ?? rect.width / 2) - rect.left,
+        y: (point.clientY ?? rect.height / 2) - rect.top,
+      });
+    }
+  }
 
   return (
     <section
       ref={containerRef}
-      className="relative flex w-full shrink-0 snap-start items-center justify-center
-                 bg-black"
+      className="relative flex w-full shrink-0 snap-start items-center justify-center bg-black"
       style={{ height: 'calc(100dvh - 116px)' }}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={() => { if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; } setIsHolding(false); }}
     >
       {ytId ? (
         <iframe
@@ -178,12 +306,39 @@ function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, o
           ref={videoRef}
           src={video.videoURL}
           className="h-full w-full object-contain"
-          loop
           playsInline
           muted={muted}
+          preload={preload}
           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-          onClick={() => setMuted((v) => !v)}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
         />
+      )}
+
+      {/* Progress bar — thin line at the very top, Stories-style */}
+      {!ytId && (
+        <div className="absolute inset-x-0 top-0 h-[3px] bg-white/20 z-10">
+          <div className="h-full bg-white transition-[width] duration-150 ease-linear" style={{ width: `${progress}%` }} />
+        </div>
+      )}
+
+      {/* Hold-to-pause indicator */}
+      {isHolding && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/40 text-3xl text-white">⏸</span>
+        </div>
+      )}
+
+      {/* Double-tap heart burst */}
+      {heartBurst && (
+        <span
+          key={heartBurst.key}
+          onAnimationEnd={() => setHeartBurst(null)}
+          className="pointer-events-none absolute text-5xl animate-[dh-heart-pop_0.7s_ease-out_forwards]"
+          style={{ left: heartBurst.x, top: heartBurst.y, transform: 'translate(-50%, -50%)' }}
+        >
+          ❤️
+        </span>
       )}
 
       {/* Duration / source badge */}
@@ -192,11 +347,25 @@ function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, o
         {ytId ? 'YouTube' : formatDuration(duration) || '•'}
       </span>
 
-      {/* Mute toggle — native videos only */}
+      {/* View count, just under the duration badge */}
+      <span className="absolute right-3 top-11 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[11px]
+                       font-semibold text-white backdrop-blur">
+        <IconEye className="w-3.5 h-3.5" /> {formatCount(viewCount)}
+      </span>
+
+      {/* Watched badge */}
+      {isWatched && (
+        <span className="absolute left-3 top-14 rounded-full bg-black/60 px-2.5 py-1 text-[10.5px]
+                         font-semibold text-slate-300 backdrop-blur flex items-center gap-1">
+          <IconCheck className="w-3 h-3" /> Watched
+        </span>
+      )}
+
+      {/* Mute toggle — native videos only (also reachable via single-tap) */}
       {!ytId && (
         <button
           type="button"
-          onClick={() => setMuted((v) => !v)}
+          onClick={(e) => { e.stopPropagation(); setMuted((v) => !v); }}
           className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full
                      bg-black/60 text-white backdrop-blur"
           aria-label={muted ? 'Unmute' : 'Mute'}
@@ -205,10 +374,79 @@ function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, o
         </button>
       )}
 
-      {/* Bottom-left: title / author / description */}
+      {/* "..." menu — Not interested / Report */}
+      <div className="absolute right-3 bottom-[max(120px,20%)]">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white active:scale-90"
+          aria-label="More options"
+        >
+          <IconMoreVertical className="w-5 h-5" />
+        </button>
+        {showMenu && (
+          <div
+            className="absolute right-0 mt-1 w-44 overflow-hidden rounded-lg border border-slate-700 bg-navy-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => { setShowMenu(false); onNotInterested(video); }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-slate-200 hover:bg-navy-cardAlt"
+            >
+              <IconX className="w-4 h-4" /> Not interested
+            </button>
+            {!isOwner && (
+              <button
+                type="button"
+                onClick={() => { setShowMenu(false); onOpenReport(video); }}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-slate-200 hover:bg-navy-cardAlt"
+              >
+                <IconFlag className="w-4 h-4" /> Report
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Up / Down swipe buttons — same effect as scrolling, for anyone
+          who'd rather tap than swipe. */}
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); scrollToSibling('prev'); }}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white active:scale-90"
+          aria-label="Previous video"
+        >
+          <IconChevronUp className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); scrollToSibling('next'); }}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white active:scale-90"
+          aria-label="Next video"
+          style={{ transform: 'rotate(180deg)' }}
+        >
+          <IconChevronUp className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Bottom-left: title / author / description / follow */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t
                       from-black/80 via-black/20 to-transparent p-4 pr-16">
-        <div className="text-[13px] font-semibold text-white">@{video.authorName || 'member'}</div>
+        <div className="pointer-events-auto flex items-center gap-2">
+          <span className="text-[13px] font-semibold text-white">@{video.authorName || 'member'}</span>
+          {!isOwner && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleFollow(video); }}
+              className={'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' +
+                (isFollowing ? 'bg-white/15 text-white' : 'bg-brand text-white')}
+            >
+              {isFollowing ? (<><IconCheck className="w-3 h-3" /> Following</>) : (<><IconUser className="w-3 h-3" /> Follow</>)}
+            </button>
+          )}
+        </div>
         <div className="mt-0.5 text-[14px] font-medium text-white line-clamp-2">{video.title}</div>
         {video.description && (
           <div className="mt-0.5 text-[12.5px] text-slate-300 line-clamp-2">{video.description}</div>
@@ -217,25 +455,25 @@ function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, o
 
       {/* Right-side action rail — Like / Comment / Save / Share / (Delete if owner) */}
       <div className="absolute bottom-4 right-2 flex flex-col items-center gap-4">
-        <button type="button" onClick={() => onToggleLike(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
+        <button type="button" onClick={(e) => { e.stopPropagation(); onToggleLike(video); }} className="flex flex-col items-center gap-1 text-white active:scale-90">
           <span className={'flex h-10 w-10 items-center justify-center rounded-full bg-black/50 ' + (isLiked ? 'text-brand' : '')}>
             <IconThumbsUp className="w-5 h-5" />
           </span>
           <span className="text-[11px] font-semibold">{likeCount}</span>
         </button>
-        <button type="button" onClick={() => onOpenComments(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
+        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenComments(video); }} className="flex flex-col items-center gap-1 text-white active:scale-90">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
             <IconComment className="w-5 h-5" />
           </span>
           <span className="text-[11px] font-semibold">{video.commentCount || 0}</span>
         </button>
-        <button type="button" onClick={() => onToggleSave(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
+        <button type="button" onClick={(e) => { e.stopPropagation(); onToggleSave(video); }} className="flex flex-col items-center gap-1 text-white active:scale-90">
           <span className={'flex h-10 w-10 items-center justify-center rounded-full bg-black/50 ' + (isSaved ? 'text-brand' : '')}>
             <IconBookmark className="w-5 h-5" filled={isSaved} />
           </span>
           <span className="text-[11px] font-semibold">{isSaved ? 'Saved' : 'Save'}</span>
         </button>
-        <button type="button" onClick={() => onOpenShare(video)} className="flex flex-col items-center gap-1 text-white active:scale-90">
+        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenShare(video); }} className="flex flex-col items-center gap-1 text-white active:scale-90">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
             <IconSend className="w-5 h-5" />
           </span>
@@ -243,7 +481,7 @@ function VideoItem({ video, isOwner, isLiked, isSaved, onDelete, onToggleLike, o
         {isOwner && (
           <button
             type="button"
-            onClick={() => onDelete(video)}
+            onClick={(e) => { e.stopPropagation(); onDelete(video); }}
             className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white active:scale-90"
             aria-label="Delete"
           >
@@ -269,6 +507,21 @@ export default function Videos() {
   const [bookmarkIds, setBookmarkIds] = useState(new Set());
   const [commentsFor, setCommentsFor] = useState(null);
   const [shareItem, setShareItem] = useState(null);
+  const [reportingVideo, setReportingVideo] = useState(null);
+
+  // Shared mute state — one video's mute/unmute choice now carries over to
+  // the next video, matching how Reels/Shorts behave (previously each
+  // <video> had its own local `muted` state, so every new video reset back
+  // to muted).
+  const [muted, setMuted] = useState(true);
+
+  // Which video index is currently the "active" (in-view) one — used only
+  // to decide which video(s) to preload next, not for rendering.
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const [hiddenIds, setHiddenIds] = useState(() => loadIdSet('dh-hidden-videos'));
+  const [watchedIds, setWatchedIds] = useState(() => loadIdSet('dh-watched-videos'));
+  const [followingIds, setFollowingIds] = useState(new Set());
 
   function handleFilePick(e) {
     const file = e.target.files?.[0];
@@ -305,6 +558,28 @@ export default function Videos() {
     return listenBookmarks(currentUser.uid, (list) => setBookmarkIds(new Set(list.map((b) => b.id))));
   }, [currentUser]);
 
+  // Who the current user follows — a lightweight `follows` collection,
+  // one doc per (follower, following) pair, mirroring how bookmarks works.
+  // NOTE: if your Firestore rules don't yet have a rule for a `follows`
+  // collection, the toggleFollow() write below will fail with a
+  // permission-denied error (caught + shown as a toast) rather than
+  // crashing anything — add a rule for it if you want Follow to work.
+  useEffect(() => {
+    if (!currentUser) return;
+    const q = query(collection(db, 'follows'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const mine = snap.docs
+        .map((d) => d.data())
+        .filter((f) => f.followerId === currentUser.uid)
+        .map((f) => f.followingId);
+      setFollowingIds(new Set(mine));
+    }, () => {
+      // Swallow permission-denied etc. — Follow simply won't reflect state
+      // if the collection/rule doesn't exist yet.
+    });
+    return unsub;
+  }, [currentUser]);
+
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!form.title.trim() || (!form.videoURL.trim() && !uploadFile)) return;
@@ -323,6 +598,7 @@ export default function Videos() {
         authorName: currentProfile?.name || 'Member',
         likes: [],
         commentCount: 0,
+        views: 0,
         createdAt: serverTimestamp(),
       });
       setForm({ title: '', videoURL: '', description: '' });
@@ -379,6 +655,59 @@ export default function Videos() {
     }).catch(() => toast('Could not update saved videos'));
   }
 
+  async function toggleFollow(video) {
+    if (!currentUser || video.authorId === currentUser.uid) return;
+    const followDocId = `${currentUser.uid}_${video.authorId}`;
+    const isFollowing = followingIds.has(video.authorId);
+    try {
+      if (isFollowing) {
+        await deleteDoc(doc(db, 'follows', followDocId));
+      } else {
+        await setDoc(doc(db, 'follows', followDocId), {
+          followerId: currentUser.uid,
+          followingId: video.authorId,
+          createdAt: serverTimestamp(),
+        });
+        notify({
+          toUserId: video.authorId,
+          type: 'follow',
+          message: `${currentProfile?.name || 'Someone'} started following you`,
+          link: '/videos',
+          fromUserId: currentUser.uid,
+          fromUserName: currentProfile?.name || 'Member',
+          fromUserPhoto: currentProfile?.photoURL || '',
+        });
+      }
+    } catch (err) {
+      console.error('toggleFollow failed', err);
+      toast('Could not update follow — this may need a Firestore rule for "follows"');
+    }
+  }
+
+  function handleNotInterested(video) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev).add(video.id);
+      saveIdSet('dh-hidden-videos', next);
+      return next;
+    });
+    toast('Got it — you\u2019ll see less like this');
+  }
+
+  function handleMarkWatched(video) {
+    setWatchedIds((prev) => {
+      if (prev.has(video.id)) return prev;
+      const next = new Set(prev).add(video.id);
+      saveIdSet('dh-watched-videos', next);
+      return next;
+    });
+  }
+
+  // One view per video per session — increments the shared `views` counter
+  // on the video doc the first time it scrolls into view.
+  function handleRegisterView(video) {
+    updateDoc(doc(db, 'videos', video.id), { views: increment(1) }).catch(() => {});
+  }
+
   function handleOpenShare(video) {
     setShareItem({
       title: video.title || 'A video on DistilleryHub',
@@ -387,8 +716,21 @@ export default function Videos() {
     });
   }
 
+  const visibleVideos = videos.filter((v) => !hiddenIds.has(v.id));
+
   return (
     <div className="-mx-3 -mt-3 sm:-mx-4">
+      {/* Keyframe for the double-tap heart-burst animation (referenced via
+          Tailwind's arbitrary `animate-[...]` utility on the heart span). */}
+      <style>{`
+        @keyframes dh-heart-pop {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+          25% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+          40% { transform: translate(-50%, -50%) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(1) translateY(-30px); }
+        }
+      `}</style>
+
       {/* Upload bar */}
       <div className="flex items-center justify-between border-b border-slate-800 bg-navy-card px-4 py-2.5">
         <span className="text-[13px] font-semibold text-white">
@@ -458,7 +800,7 @@ export default function Videos() {
         </form>
       )}
 
-      {videos.length === 0 && (
+      {visibleVideos.length === 0 && (
         <div className="px-4 py-10 text-center text-[13.5px] text-slate-500">No videos yet.</div>
       )}
 
@@ -467,18 +809,30 @@ export default function Videos() {
         className="snap-y snap-mandatory overflow-y-scroll"
         style={{ height: 'calc(100dvh - 116px)' }}
       >
-        {videos.map((video) => (
+        {visibleVideos.map((video, i) => (
           <VideoItem
             key={video.id}
             video={video}
+            index={i}
             isOwner={video.authorId === currentUser?.uid}
             isLiked={!!video.likes?.includes(currentUser?.uid)}
             isSaved={bookmarkIds.has(bookmarkDocId('video', video.id))}
+            isFollowing={followingIds.has(video.authorId)}
+            isWatched={watchedIds.has(video.id)}
+            muted={muted}
+            setMuted={setMuted}
+            preload={Math.abs(i - activeIndex) <= 1 ? 'auto' : 'metadata'}
             onDelete={removeVideo}
             onToggleLike={toggleLike}
             onOpenComments={(v) => setCommentsFor(v)}
             onOpenShare={handleOpenShare}
             onToggleSave={handleToggleSave}
+            onToggleFollow={toggleFollow}
+            onNotInterested={handleNotInterested}
+            onOpenReport={(v) => setReportingVideo(v)}
+            onMarkWatched={handleMarkWatched}
+            onRegisterView={handleRegisterView}
+            onInViewChange={(idx, inView) => { if (inView) setActiveIndex(idx); }}
           />
         ))}
       </div>
@@ -493,6 +847,19 @@ export default function Videos() {
       )}
 
       {shareItem && <ShareSheet item={shareItem} onClose={() => setShareItem(null)} />}
+
+      {reportingVideo && (
+        <ReportDialog
+          targetType="video"
+          targetId={reportingVideo.id}
+          extra={{
+            videoTitle: reportingVideo.title || '',
+            videoAuthorId: reportingVideo.authorId,
+          }}
+          onClose={() => setReportingVideo(null)}
+          onSubmitted={() => toast('Report submitted. Thanks for flagging this.')}
+        />
+      )}
     </div>
   );
 }
