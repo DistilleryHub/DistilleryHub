@@ -458,7 +458,6 @@ export default function Chat() {
     setShowSearchBar(false);
     setSearchQuery('');
     setShowChatMenu(false);
-    setShowManageGroup(false);
     if (activeChat) {
       const { chatId } = getChatMeta();
       setWallpaperKey(localStorage.getItem(`wallpaper_${chatId}`) || 'default');
