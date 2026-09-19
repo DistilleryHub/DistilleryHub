@@ -203,6 +203,14 @@ export default function Chat() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const discardRecordingRef = useRef(false);
+  // Client-side rate-limit mirror of firestore.rules' 700ms messages/create
+  // gap. Firestore returns the same `permission-denied` code whether a
+  // create was rejected for being too fast, for being blocked, or for the
+  // recipient's "who can message me" setting — so on its own the error
+  // code can't tell us which one happened. Tracking our own last-successful
+  // send time lets us only show the "too fast" message when it's actually
+  // true, and something more accurate otherwise.
+  const lastMessageSentAtRef = useRef(0);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
@@ -237,8 +245,9 @@ export default function Chat() {
   }, [currentUser]);
 
   // Ended call history for the "Calls" tab. Needs a composite index
-  // (participants array-contains + status == + createdAt orderBy) — if it's
-  // missing, Firestore logs an error with a one-click link to create it.
+  // (participants array-contains + status == + createdAt orderBy) — see
+  // firestore.indexes.json in this fix. If it's missing, Firestore logs an
+  // error with a one-click link to create it.
   useEffect(() => {
     if (!currentUser) return;
     const q = query(
@@ -712,9 +721,20 @@ export default function Chat() {
       });
   }
 
+  // FIX: Firestore returns the same `permission-denied` code whether the
+  // messages/create rule was rejected for the 700ms rate limit, for a
+  // block (isBlockedPair), or for the recipient's "who can message me"
+  // setting (canMessage) — there is no way to tell those apart from
+  // err.code alone. Previously ANY permission-denied here showed "You're
+  // sending messages too fast", even when the real reason was a block or
+  // a privacy setting. We now keep our own lastMessageSentAtRef and only
+  // show the "too fast" message when a send truly landed under 700ms
+  // after the last successful one.
   async function sendRawMessage(body, extra = {}) {
     if (!body.trim() && !extra.mediaUrl && !extra.poll && !extra.event) return;
     const { chatId, participants } = getChatMeta();
+    const sentAt = Date.now();
+    const wasRecentSend = sentAt - lastMessageSentAtRef.current < 700;
     try {
       const batch = writeBatch(db);
       batch.set(doc(db, 'chats', chatId), {
@@ -746,11 +766,16 @@ export default function Chat() {
       // in the same commit — so a client can't skip it to dodge the limit.
       batch.set(doc(db, 'rateLimits', currentUser.uid), { lastMessageAt: serverTimestamp() }, { merge: true });
       await batch.commit();
+      lastMessageSentAtRef.current = sentAt; // only stamp on a successful send
       notifyOthers(participants, body, activeChat.type === 'group', activeChat.chat?.name);
     } catch (err) {
       console.error('sendRawMessage failed', err);
       if (err.code === 'permission-denied') {
-        noticeDialog('You\u2019re sending messages too fast — slow down a bit.');
+        if (wasRecentSend) {
+          noticeDialog('You\u2019re sending messages too fast — slow down a bit.');
+        } else {
+          noticeDialog('Message couldn\u2019t be sent — you may be blocked, or this person only accepts messages from their connections.');
+        }
       } else {
         noticeDialog('Message send failed: ' + err.code + ' — ' + err.message);
       }
