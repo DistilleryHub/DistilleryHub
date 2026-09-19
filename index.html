@@ -1,40 +1,61 @@
 <!doctype html>
 <html lang="en">
 <head>
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b1325">
-<!-- Tells Chrome/Android this page manages its own light/dark styling,
-     so the OS-level "Force Dark" auto-invert never overrides our colors
-     (that was causing white search bars / washed-out names before). -->
-<meta name="color-scheme" content="dark light">
-<meta name="description" content="DistilleryHub — professional social network for distillery, ethanol, laboratory and plant professionals.">
-<title>DistilleryHub</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="manifest" href="/manifest.json">
-<!-- iOS: true fullscreen standalone PWA -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="DistilleryHub">
-<!-- Android/Chrome: standalone PWA -->
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="apple-touch-icon" href="/icon-192.png">
-<script type="text/javascript">
-  (function (l) {
-    if (l.search[1] === '/') {
-      var decoded = l.search.slice(1).split('&').map(function (s) {
-        return s.replace(/~and~/g, '&');
-      }).join('?');
-      window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+  <script>
+    // FIX: eruda debug console now loads only on localhost, never on the
+    // live/production site. It was previously loaded unconditionally,
+    // which is why a small floating gear/debug icon showed up in
+    // production screenshots — that's the eruda button, not part of the
+    // app itself.
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+      s.onload = function () { eruda.init(); };
+      document.head.appendChild(s);
     }
-  }(window.location));
-</script>
+  </script>
+  <meta charset="utf-8">
+  <!-- FIX: added interactive-widget=resizes-content. Without it, Chrome on
+       Android keeps `position: fixed` elements positioned against the
+       full "layout viewport" (the size the page would be if the browser's
+       own toolbar were hidden) instead of the currently visible area. That
+       pushed BottomNav below the visible screen whenever Chrome's toolbar
+       was showing — it only became visible once the toolbar auto-collapsed
+       from scrolling. This value tells Chrome to resize the layout
+       viewport to match what's actually visible, so fixed elements like
+       BottomNav stay correctly anchored to the bottom of the screen at
+       all times, not just after scrolling. -->
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+  <meta name="theme-color" content="#0b1325">
+  <!-- Tells Chrome/Android this page manages its own light/dark styling,
+       so the OS-level "Force Dark" auto-invert never overrides our colors
+       (that was causing white search bars / washed-out names before). -->
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="DistilleryHub — professional social network for distillery, ethanol, laboratory and plant professionals.">
+  <title>DistilleryHub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/manifest.json">
+  <!-- iOS: true fullscreen standalone PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DistilleryHub">
+  <!-- Android/Chrome: standalone PWA -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <script type="text/javascript">
+    (function (l) {
+      if (l.search[1] === '/') {
+        var decoded = l.search.slice(1).split('&').map(function (s) {
+          return s.replace(/~and~/g, '&');
+        }).join('?');
+        window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+      }
+    }(window.location));
+  </script>
 </head>
 <body>
-<div id="root"></div>
-<script type="module" src="/main.jsx"></script>
+  <div id="root"></div>
+  <script type="module" src="/main.jsx"></script>
 </body>
 </html>
