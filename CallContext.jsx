@@ -50,6 +50,13 @@ export function CallProvider({ children }) {
   const [videoOff, setVideoOff] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
   const [facingMode, setFacingMode] = useState('user'); // 'user' = front, 'environment' = back
+  // FIX: surfaces getUserMedia failures (camera/mic permission denied,
+  // device busy, no device present, etc.) to the UI. Previously startCall
+  // and joinCall let this rejection propagate uncaught — nothing visibly
+  // happened, so a user facing a permission prompt they dismissed (or a
+  // browser that silently denies it) would just tap Accept/Call again and
+  // again, hitting the same NotAllowedError every time with no feedback.
+  const [callError, setCallError] = useState(null);
 
   const peersRef = useRef({});
   const localStreamRef = useRef(null);
@@ -256,13 +263,44 @@ export function CallProvider({ children }) {
     );
   }
 
+  // Turns a getUserMedia rejection into a message the UI can show. Kept as
+  // one helper so startCall and joinCall report failures consistently.
+  function describeMediaError(e) {
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      return 'Camera/microphone access was denied. Please allow camera and microphone access for DistilleryHub and try again.';
+    }
+    if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+      return 'No camera/microphone was found on this device.';
+    }
+    if (e.name === 'NotReadableError' || e.name === 'TrackStartError') {
+      return 'Your camera/microphone is already in use by another app.';
+    }
+    return 'Could not access camera/microphone: ' + (e.message || e.name || 'unknown error');
+  }
+
   const startCall = useCallback(async (participantUids, callType = 'video') => {
     if (!currentUser) return;
+    setCallError(null);
     const allParticipants = [...new Set([currentUser.uid, ...participantUids])];
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: AUDIO_CONSTRAINTS,
-      video: callType === 'video' ? { facingMode } : false,
-    });
+
+    // FIX: getUserMedia is now wrapped in try/catch. Before this, a denied
+    // permission (or a busy/missing device) threw here uncaught — no call
+    // doc was created, but nothing told the user why, so tapping the call
+    // button again just repeated the same silent failure. Now we surface a
+    // message via callError and return early instead of continuing into a
+    // call that has no local media.
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: AUDIO_CONSTRAINTS,
+        video: callType === 'video' ? { facingMode } : false,
+      });
+    } catch (e) {
+      console.error('DistilleryHub call: getUserMedia failed (startCall)', e);
+      setCallError(describeMediaError(e));
+      return;
+    }
+
     localStreamRef.current = stream;
     setLocalStream(stream);
 
@@ -286,12 +324,29 @@ export function CallProvider({ children }) {
   }, [currentUser, facingMode]);
 
   const joinCall = useCallback(async (call) => {
+    setCallError(null);
+
+    // FIX: same getUserMedia try/catch as startCall. Crucially, on failure
+    // we do NOT call setIncomingCall(null) or stop the ringtone permanently —
+    // the incoming-call screen stays up so the user can see the error and
+    // either allow the permission and tap Accept again, or tap Decline.
+    // Previously the exception propagated straight out of joinCall with the
+    // incoming-call state untouched, which looked identical to "nothing
+    // happened" — the only feedback was a console error the user never sees.
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: AUDIO_CONSTRAINTS,
+        video: call.callType === 'video' ? { facingMode } : false,
+      });
+    } catch (e) {
+      console.error('DistilleryHub call: getUserMedia failed (joinCall)', e);
+      setCallError(describeMediaError(e));
+      return;
+    }
+
     if (ringtoneStopRef.current) { ringtoneStopRef.current(); ringtoneStopRef.current = null; }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: AUDIO_CONSTRAINTS,
-      video: call.callType === 'video' ? { facingMode } : false,
-    });
     localStreamRef.current = stream;
     setLocalStream(stream);
     setIncomingCall(null);
@@ -359,6 +414,7 @@ export function CallProvider({ children }) {
       console.error('DistilleryHub call: decline failed', e);
     }
     setIncomingCall(null);
+    setCallError(null);
   }, [incomingCall, currentUser]);
 
   const toggleMute = useCallback(() => {
@@ -492,6 +548,7 @@ export function CallProvider({ children }) {
   return (
     <CallContext.Provider value={{
       activeCall, remoteStreams, localStream, muted, videoOff, incomingCall, facingMode, callStats,
+      callError,
       startCall, joinCall, leaveCall, declineCall, toggleMute, toggleVideo, switchCamera,
     }}>
       {children}

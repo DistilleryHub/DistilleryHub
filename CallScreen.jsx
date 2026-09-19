@@ -7,7 +7,6 @@ import { getSharedAudioContext } from './callSounds';
 import { IconMic, IconMicOff, IconVolume, IconVolumeMute, IconVideo, IconVideoOff, IconRefreshCw, IconPhone } from './Icons';
 
 const profileCache = {};
-
 function useUserProfile(uid) {
   const [profile, setProfile] = useState(profileCache[uid] || null);
   useEffect(() => {
@@ -98,7 +97,6 @@ function useIsSpeaking(stream) {
     let source = null;
     let analyser = null;
     let cancelled = false;
-
     try {
       const ctx = getSharedAudioContext();
       source = ctx.createMediaStreamSource(stream);
@@ -106,7 +104,6 @@ function useIsSpeaking(stream) {
       analyser.fftSize = 512;
       source.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
-
       const tick = () => {
         if (cancelled) return;
         analyser.getByteFrequencyData(data);
@@ -120,7 +117,6 @@ function useIsSpeaking(stream) {
     } catch (e) {
       // Analyser unsupported / stream not ready yet — just skip the highlight.
     }
-
     return () => {
       cancelled = true;
       if (raf) cancelAnimationFrame(raf);
@@ -152,6 +148,39 @@ async function applySinkId(audioEl, speakerOn) {
   }
 }
 
+// FIX: shows CallContext's callError (camera/mic permission denied, device
+// busy, no device found) as a small dismissible banner. Previously a
+// getUserMedia failure in startCall/joinCall had no visible effect at all —
+// the user had no way to know why nothing happened, and would just retry
+// the same action, hitting the same silent failure repeatedly.
+function CallErrorBanner({ message, onDismiss }) {
+  if (!message) return null;
+  return (
+    <div
+      role="alert"
+      style={{
+        position: 'fixed', top: 'max(12px, env(safe-area-inset-top, 12px))', left: '50%', transform: 'translateX(-50%)',
+        background: '#e5484d', color: '#fff', padding: '10px 16px', borderRadius: 10,
+        fontSize: 13, lineHeight: 1.4, zIndex: 2147483001, maxWidth: '92%', textAlign: 'center',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', gap: 10,
+      }}
+    >
+      <span>{message}</span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        style={{
+          flexShrink: 0, background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%',
+          width: 20, height: 20, color: '#fff', cursor: 'pointer', lineHeight: 1, fontSize: 13,
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------
 // Shared bottom control bar — used by outgoing, 1-on-1, and group screens.
 // ---------------------------------------------------------------------
@@ -164,23 +193,19 @@ function CallControlsBar({
       <button className={'call-control-btn' + (muted ? ' active' : '')} onClick={onToggleMute} aria-label="Toggle mute">
         {muted ? <IconMicOff className="w-5 h-5" /> : <IconMic className="w-5 h-5" />}
       </button>
-
       <button className={'call-control-btn' + (speakerOn ? ' active' : '')} onClick={onToggleSpeaker} aria-label="Toggle speaker">
         {speakerOn ? <IconVolume className="w-5 h-5" /> : <IconVolumeMute className="w-5 h-5" />}
       </button>
-
       {isVideoCall && (
         <button className={'call-control-btn' + (videoOff ? ' active' : '')} onClick={onToggleVideo} aria-label="Toggle camera">
           {videoOff ? <IconVideoOff className="w-5 h-5" /> : <IconVideo className="w-5 h-5" />}
         </button>
       )}
-
       {isVideoCall && (
         <button className="call-control-btn" onClick={onSwitchCamera} aria-label="Switch front/back camera">
           <IconRefreshCw className="w-5 h-5" />
         </button>
       )}
-
       <button className="call-btn call-btn-decline call-btn-end" onClick={onEnd} aria-label={endLabel || 'End call'}>
         <span><IconPhone className="w-6 h-6" /></span>
       </button>
@@ -204,6 +229,7 @@ function IncomingCallOverlay({ call, onAccept, onDecline }) {
           {call.callType === 'video' ? 'Incoming video call' : 'Incoming voice call'}
         </span>
       </div>
+
       <div className="call-incoming-center">
         <Avatar profile={profile} size={140} />
         <h2 className="call-caller-name">
@@ -212,6 +238,7 @@ function IncomingCallOverlay({ call, onAccept, onDecline }) {
         </h2>
         <p className="call-ringing-text">is calling…</p>
       </div>
+
       <div className="call-incoming-actions">
         <button className="call-btn call-btn-decline" onClick={onDecline} aria-label="Decline call"><span><IconPhone className="w-6 h-6" /></span></button>
         <button className="call-btn call-btn-accept" onClick={onAccept} aria-label="Accept call"><span><IconPhone className="w-6 h-6" /></span></button>
@@ -250,6 +277,7 @@ function OutgoingCallOverlay({ call, localStream, muted, videoOff, speakerOn, on
       <div className="call-incoming-top">
         <span className="call-type-label">{isVideoCall ? 'Video calling…' : 'Calling…'}</span>
       </div>
+
       <div className="call-active-header">
         <h2 className="call-caller-name">
           {isGroup ? `${profile.name || 'Member'} +${otherUids.length - 1} more` : (profile.name || 'DistilleryHub member')}
@@ -282,14 +310,12 @@ function OneOnOneActiveLayout({
 }) {
   const profile = useUserProfile(otherUid);
   const remoteStream = remoteStreams[otherUid];
-
   const bigVideoRef = useRef(null);
   const pipVideoRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const [startedAt] = useState(() => Date.now());
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [pipIsLocal, setPipIsLocal] = useState(true); // true = local video is the small PiP (default)
-
   const isVideoCall = call.callType === 'video';
   const remoteHasVideo = isVideoCall && !!remoteStream && remoteStream.getVideoTracks().length > 0;
 
@@ -329,7 +355,6 @@ function OneOnOneActiveLayout({
   return (
     <div className="call-overlay call-overlay-active">
       <audio ref={remoteAudioRef} autoPlay />
-
       {audioBlocked && (
         <button
           className="call-audio-unblock-btn"
@@ -339,7 +364,6 @@ function OneOnOneActiveLayout({
           <IconVolume className="w-4 h-4" /> Tap to enable sound
         </button>
       )}
-
       {showBigVideo ? (
         <video ref={bigVideoRef} className="call-remote-video" autoPlay playsInline muted />
       ) : (
@@ -462,7 +486,6 @@ function GroupActiveLayout({
 function ActiveCallOverlay(props) {
   const { currentUser } = useAuth();
   const otherUids = (props.call.participants || []).filter((u) => u !== currentUser.uid);
-
   if (otherUids.length > 1) {
     return <GroupActiveLayout {...props} otherUids={otherUids} />;
   }
@@ -473,51 +496,67 @@ function ActiveCallOverlay(props) {
 export default function CallScreen() {
   const {
     activeCall, remoteStreams, localStream, muted, videoOff, incomingCall, callStats,
+    callError,
     joinCall, leaveCall, declineCall, toggleMute, toggleVideo, switchCamera,
   } = useCall();
-
   const [speakerOn, setSpeakerOn] = useState(false);
   const onToggleSpeaker = () => setSpeakerOn((v) => !v);
+  // FIX: local dismiss state so the banner can be closed even if CallContext
+  // hasn't cleared callError yet (e.g. user dismisses, then retries).
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => { setDismissed(false); }, [callError]);
+  const showError = callError && !dismissed;
 
   if (activeCall && activeCall.status === 'ringing') {
     return (
-      <OutgoingCallOverlay
-        call={activeCall}
-        localStream={localStream}
-        muted={muted}
-        videoOff={videoOff}
-        speakerOn={speakerOn}
-        onLeave={leaveCall}
-        onToggleMute={toggleMute}
-        onToggleVideo={toggleVideo}
-        onSwitchCamera={switchCamera}
-        onToggleSpeaker={onToggleSpeaker}
-      />
+      <>
+        <CallErrorBanner message={showError ? callError : null} onDismiss={() => setDismissed(true)} />
+        <OutgoingCallOverlay
+          call={activeCall}
+          localStream={localStream}
+          muted={muted}
+          videoOff={videoOff}
+          speakerOn={speakerOn}
+          onLeave={leaveCall}
+          onToggleMute={toggleMute}
+          onToggleVideo={toggleVideo}
+          onSwitchCamera={switchCamera}
+          onToggleSpeaker={onToggleSpeaker}
+        />
+      </>
     );
   }
 
   if (activeCall) {
     return (
-      <ActiveCallOverlay
-        call={activeCall}
-        remoteStreams={remoteStreams}
-        localStream={localStream}
-        muted={muted}
-        videoOff={videoOff}
-        speakerOn={speakerOn}
-        callStats={callStats}
-        onLeave={leaveCall}
-        onToggleMute={toggleMute}
-        onToggleVideo={toggleVideo}
-        onSwitchCamera={switchCamera}
-        onToggleSpeaker={onToggleSpeaker}
-      />
+      <>
+        <CallErrorBanner message={showError ? callError : null} onDismiss={() => setDismissed(true)} />
+        <ActiveCallOverlay
+          call={activeCall}
+          remoteStreams={remoteStreams}
+          localStream={localStream}
+          muted={muted}
+          videoOff={videoOff}
+          speakerOn={speakerOn}
+          callStats={callStats}
+          onLeave={leaveCall}
+          onToggleMute={toggleMute}
+          onToggleVideo={toggleVideo}
+          onSwitchCamera={switchCamera}
+          onToggleSpeaker={onToggleSpeaker}
+        />
+      </>
     );
   }
 
   if (incomingCall) {
-    return <IncomingCallOverlay call={incomingCall} onAccept={() => joinCall(incomingCall)} onDecline={declineCall} />;
+    return (
+      <>
+        <CallErrorBanner message={showError ? callError : null} onDismiss={() => setDismissed(true)} />
+        <IncomingCallOverlay call={incomingCall} onAccept={() => joinCall(incomingCall)} onDecline={declineCall} />
+      </>
+    );
   }
 
   return null;
-          }
+}
