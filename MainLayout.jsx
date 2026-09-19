@@ -58,7 +58,14 @@ export default function MainLayout({ children }) {
       )}
       <TopBar profile={currentProfile} unreadNotifications={unreadCount} onMenuClick={() => setShowMenu(true)} />
 
-      <main className="mx-auto w-full max-w-2xl px-3 pb-24 pt-3 sm:px-4">
+      {/* FIX (layout not adjusting to wide/desktop screens): this column was
+          capped at max-w-2xl (672px) on every screen size, so on a desktop
+          browser or a maximized PWA window the whole app rendered as a
+          narrow strip with large empty margins on both sides. The extra
+          md/lg/xl breakpoints below let the column grow on wider viewports
+          while staying a comfortable reading width on phones (max-w-2xl is
+          still the default / smallest-screen value). */}
+      <main className="mx-auto w-full max-w-2xl px-3 pb-24 pt-3 sm:px-4 md:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
         {children}
       </main>
 

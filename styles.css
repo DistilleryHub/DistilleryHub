@@ -402,7 +402,26 @@ input::placeholder, textarea::placeholder { color: var(--muted-2); }
   max-height: 520px;
   object-fit: cover;
 }
-.post-actions { display: flex; gap: 6px; border-top: 1px solid var(--border); padding: 10px 8px 0; margin-top: 4px; }
+/* FIX (post-actions row overflow): row was wrapping "Share 0" onto two
+   lines and cramping buttons on narrow/constrained columns. Buttons now
+   stay on one line, shrink their padding/font first, and ellipsize label
+   text only as a last resort instead of wrapping. */
+.post-actions {
+  display: flex;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding: 10px 4px 0;
+  margin-top: 4px;
+  flex-wrap: nowrap;
+}
+.post-actions .btn-ghost {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 8px 4px;
+  font-size: 12.5px;
+  min-width: 0;
+}
 
 .card.post {
   padding: 12px 0 8px;
